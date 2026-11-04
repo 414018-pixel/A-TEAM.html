@@ -2,154 +2,291 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>A-Teamverse: Realtime Multiplayer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #a8c3b5; touch-action: none; font-family: 'Inter', sans-serif; }
-        #game-wrapper { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; display: none; }
-        canvas { background-color: #a8c3b5; display: block; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            overflow: hidden; background-color: #0f172a; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            user-select: none; touch-action: none;
+        }
         
-        /* 登入與大廳介面 */
-        #intro-screen { position: absolute; inset: 0; background: #a8c3b5; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #334155; }
-        .intro-card { background: rgba(255, 255, 255, 0.95); padding: 40px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; max-width: 95%; width: 420px; }
-        #name-input, #room-input { padding: 12px 20px; border-radius: 12px; border: 3px solid #98c9c6; background: #ffffff; color: #334155; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; width: 100%; font-weight: bold; }
-        #name-input:focus, #room-input:focus { border-color: #4a7c59; }
+        #game-wrapper { position: relative; width: 100vw; height: 100vh; display: none; overflow: hidden; background-color: #a8c3b5; }
+        canvas { background-color: #a8c3b5; display: block; width: 100%; height: 100%; }
+
+        /* 開場載入歡迎動畫與進度條 */
+        #splash-screen {
+            position: fixed; inset: 0; z-index: 200;
+            background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .pulse-logo {
+            animation: bounceLogo 2s infinite ease-in-out;
+        }
+        @keyframes bounceLogo {
+            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 10px 20px rgba(16,185,129,0.3)); }
+            50% { transform: translateY(-8px) scale(1.03); filter: drop-shadow(0 18px 30px rgba(16,185,129,0.5)); }
+        }
+        .progress-track {
+            width: 240px; height: 8px; background: rgba(255,255,255,0.15);
+            border-radius: 999px; overflow: hidden; position: relative;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .progress-bar-fill {
+            width: 0%; height: 100%;
+            background: linear-gradient(90deg, #34d399, #10b981);
+            border-radius: 999px;
+            box-shadow: 0 0 12px #34d399;
+            transition: width 0.1s linear;
+        }
+
+        /* 遊戲大廳面板 */
+        #intro-screen { 
+            position: fixed; inset: 0; z-index: 100; 
+            background: radial-gradient(circle at 50% 30%, #a8c3b5 0%, #2f4f4f 100%); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            padding: 16px;
+        }
+        .intro-card { 
+            background: rgba(255, 255, 255, 0.94); 
+            backdrop-filter: blur(20px);
+            padding: 28px 24px; 
+            border-radius: 28px; 
+            border: 2px solid rgba(255,255,255,0.9);
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35); 
+            display: flex; flex-direction: column; align-items: center; 
+            max-width: 400px; width: 100%; 
+            animation: cardPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes cardPop {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
         
-        .avatar-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 25px; width: 100%; }
-        .avatar-btn { font-size: 32px; background: #f1f5f9; border: 3px solid #cbd5e1; border-radius: 16px; padding: 8px; cursor: pointer; transition: all 0.2s; user-select: none; display: flex; justify-content: center; align-items: center; }
-        .avatar-btn.selected { border-color: #4a7c59; background: #ffffff; transform: scale(1.1); box-shadow: 0 4px 12px rgba(74, 124, 89, 0.3); }
+        #name-input, #room-input { 
+            padding: 12px 16px; border-radius: 14px; 
+            border: 2px solid #cbd5e1; background: #f8fafc; 
+            color: #1e293b; font-size: 16px; outline: none; 
+            text-align: center; width: 100%; font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        #name-input:focus, #room-input:focus { 
+            border-color: #10b981; background: #ffffff; 
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2); 
+        }
         
-        .action-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 12px; display: flex; justify-content: center; align-items: center; gap: 8px; }
-        .btn-single { background: #eab308; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4); }
-        .btn-single:hover { background: #ca8a04; transform: translateY(-2px); }
-        .btn-create { background: #4a7c59; box-shadow: 0 4px 15px rgba(74, 124, 89, 0.4); }
-        .btn-create:hover { background: #3d6649; transform: translateY(-2px); }
-        .btn-join { background: #0284c7; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4); }
-        .btn-join:hover { background: #0369a1; transform: translateY(-2px); }
+        .avatar-grid { 
+            display: grid; grid-template-columns: repeat(5, 1fr); 
+            gap: 8px; margin: 14px 0 18px; width: 100%; 
+        }
+        .avatar-btn { 
+            font-size: 28px; background: #f8fafc; 
+            border: 2px solid #e2e8f0; border-radius: 16px; 
+            height: 52px; cursor: pointer; transition: all 0.15s ease; 
+            display: flex; justify-content: center; align-items: center; 
+        }
+        .avatar-btn:active { transform: scale(0.92); }
+        .avatar-btn.selected { 
+            border-color: #10b981; background: #ffffff; 
+            transform: scale(1.08); 
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); 
+        }
+        
+        .action-btn { 
+            width: 100%; padding: 13px; font-size: 15px; font-weight: 800; 
+            color: white; border: none; border-radius: 14px; cursor: pointer; 
+            transition: transform 0.15s, opacity 0.15s; display: flex; 
+            justify-content: center; align-items: center; gap: 8px; 
+        }
+        .action-btn:active { transform: scale(0.96); opacity: 0.92; }
+        .btn-single { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3); }
+        .btn-create { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3); }
+        .btn-join { background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3); }
         
         #lobby-ui { display: none; width: 100%; text-align: center; }
-        .player-tag { display: inline-block; background: #f1f5f9; border: 2px solid #cbd5e1; border-radius: 20px; padding: 5px 15px; margin: 5px; font-weight: bold; color: #334155; }
-        
-        #game-over-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 95; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .game-over-content { background: #ffffff; padding: 50px; border-radius: 24px; text-align: center; color: #334155; max-width: 400px; border: 4px solid #ef4444; box-shadow: 0 15px 50px rgba(239, 68, 68, 0.3); }
+        .player-tag { 
+            display: inline-flex; align-items: center; gap: 6px; 
+            background: #f1f5f9; border: 1.5px solid #cbd5e1; 
+            border-radius: 999px; padding: 6px 14px; margin: 4px; 
+            font-weight: 700; color: #334155; font-size: 14px;
+        }
 
-        /* 遊戲內 UI */
-        #ui-layer { position: absolute; top: 15px; left: 15px; pointer-events: none; z-index: 10; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
-        
-        #battle-panel { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.85); border: 3px solid #98c9c6; border-radius: 16px; padding: 15px; width: 220px; z-index: 9; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); display: none; }
-        .vs-row { display: flex; justify-content: space-between; padding: 8px; margin: 4px 0; border-radius: 8px; font-weight: bold; }
-        .vs-me { background: #fef9c3; border: 2px solid #e3c28c; color: #854d0e; }
-        .vs-enemy { background: #f1f5f9; border: 2px solid #cbd5e1; color: #334155; }
-        
-        /* 題目與單字卡 */
-        #dialogue-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width: 700px; background: white; border-radius: 16px; padding: 20px; display: none; box-shadow: 0 20px 50px rgba(0,0,0,0.3); z-index: 50; max-height: 90vh; overflow-y: auto; }
-        .vocab-pill { display: inline-flex; align-items: center; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px; padding: 4px 10px; margin-right: 6px; margin-bottom: 6px; font-size: 13px; font-weight: bold; color: #334155; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .tool-btn-small { margin-left: 6px; background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; transition: transform 0.1s; }
-        .tool-btn-small:hover { transform: scale(1.2); }
-        .option-btn { width: 100%; padding: 15px; margin-bottom: 12px; border: 2px solid #e2e8f0; background: #ffffff; border-radius: 12px; cursor: pointer; transition: all 0.2s; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; color: #334155; }
-        .option-btn:hover { border-color: #98c9c6; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        
-        #d-pad { position: absolute; bottom: 30px; left: 30px; display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(3, 60px); gap: 8px; z-index: 20; }
-        .d-btn { background: rgba(255,255,255,0.6); border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; color: #333; font-size: 24px; display: flex; justify-content: center; align-items: center; user-select: none; touch-action: manipulation; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .d-btn:active { background: rgba(255,255,255,0.9); }
-        #btn-up { grid-column: 2; grid-row: 1; }
-        #btn-left { grid-column: 1; grid-row: 2; }
-        #btn-right { grid-column: 3; grid-row: 2; }
-        #btn-down { grid-column: 2; grid-row: 3; }
-        @media (min-width: 768px) { #d-pad { display: none; } }
+        /* 遊戲內 HUD */
+        #ui-layer { position: absolute; top: 16px; left: 16px; pointer-events: none; z-index: 10; }
+        #battle-panel { 
+            position: absolute; top: 16px; right: 16px; 
+            background: rgba(255, 255, 255, 0.92); border: 2px solid #98c9c6; 
+            border-radius: 14px; padding: 12px; width: 180px; z-index: 9; 
+            backdrop-filter: blur(8px); display: none; 
+            box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+        }
+        .vs-row { display: flex; justify-content: space-between; padding: 5px 8px; margin: 3px 0; border-radius: 6px; font-weight: 700; font-size: 13px; }
+        .vs-me { background: #fef08a; color: #854d0e; }
+        .vs-enemy { background: #f1f5f9; color: #334155; }
+
+        /* 手機 360 度虛擬搖桿 (Joystick) */
+        #joystick-zone {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            width: 140px;
+            height: 140px;
+            z-index: 80;
+            display: none; /* 由 JS 依裝置環境自動啟用 */
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            user-select: none;
+        }
+        #joystick-base {
+            width: 130px;
+            height: 130px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.1) 100%);
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #joystick-knob {
+            width: 58px;
+            height: 58px;
+            background: linear-gradient(135deg, #ffffff, #d1fae5);
+            border: 2.5px solid #10b981;
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+            pointer-events: none;
+            transform: translate(0px, 0px);
+            transition: transform 0.05s ease-out;
+        }
+        #joystick-zone.active #joystick-knob {
+            background: linear-gradient(135deg, #a7f3d0, #34d399);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+        }
+
+        /* 題目對話框 */
+        #dialogue-box { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 92%; max-width: 560px; background: white; border-radius: 24px; 
+            padding: 22px; display: none; box-shadow: 0 25px 60px -15px rgba(0,0,0,0.35); 
+            z-index: 95; max-height: 85vh; overflow-y: auto; 
+        }
+        .vocab-pill { display: inline-flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 4px 10px; margin-right: 6px; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: #334155; }
+        .tool-btn-small { margin-left: 6px; background: none; border: none; cursor: pointer; font-size: 14px; }
+        .option-btn { width: 100%; padding: 14px; margin-bottom: 10px; border: 2px solid #e2e8f0; background: #ffffff; border-radius: 16px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; color: #334155; }
+
+        #game-over-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .game-over-content { background: #ffffff; padding: 40px 32px; border-radius: 28px; text-align: center; max-width: 340px; width: 90%; }
     </style>
 </head>
 <body>
 
-    <!-- 登入與大廳 -->
+    <!-- 1. 開場載入與歡迎動畫畫面 -->
+    <div id="splash-screen">
+        <div class="pulse-logo text-7xl mb-4">🏝️</div>
+        <h1 class="text-3xl font-black text-white tracking-widest uppercase mb-1">A-Teamverse</h1>
+        <p class="text-xs font-semibold text-emerald-300 tracking-wider mb-8">英語大冒險 • 即時連線</p>
+        
+        <div class="progress-track mb-3">
+            <div class="progress-bar-fill" id="loading-bar"></div>
+        </div>
+        <p class="text-xs font-bold text-gray-400" id="loading-text">載入遊戲世界中... 0%</p>
+    </div>
+
+    <!-- 2. 登入與多人大廳 -->
     <div id="intro-screen">
         <div class="intro-card" id="login-ui">
-            <h1 class="text-4xl font-extrabold mb-2 text-center" style="color: #4a7c59;">A-Teamverse</h1>
-            <p class="text-sm mb-6 font-semibold text-center text-gray-500">Learn English & Explore</p>
-            <input type="text" id="name-input" placeholder="Your Name (e.g. Leo)" maxlength="10" autocomplete="off">
+            <div class="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-2xl mb-2">🎮</div>
+            <h1 class="text-2xl font-black text-slate-800 tracking-tight">準備出發！</h1>
+            <p class="text-xs mb-4 font-semibold text-gray-400">選擇角色與名稱進入小鎮</p>
+            
+            <input type="text" id="name-input" placeholder="輸入玩家暱稱 (例: Leo)" maxlength="10" autocomplete="off">
             <div class="avatar-grid" id="avatar-grid"></div>
             
-            <div id="action-buttons" style="display: none; width: 100%;">
-                <!-- 恢復單機遊玩按鈕 -->
-                <button class="action-btn btn-single" onclick="window.startSinglePlayer()">👤 Enter City (Single)</button>
-                <hr class="my-4 border-gray-300">
-                <button class="action-btn btn-create" onclick="window.createRoom()">🏠 Create Multiplayer Room</button>
+            <div id="action-buttons" style="display: none; width: 100%;" class="space-y-3">
+                <button class="action-btn btn-single" onclick="window.startSinglePlayer()">👤 單人自由探索</button>
+                <div class="relative flex py-1 items-center">
+                    <div class="flex-grow border-t border-gray-200"></div>
+                    <span class="flex-shrink mx-3 text-gray-400 text-xs font-bold">多人競賽</span>
+                    <div class="flex-grow border-t border-gray-200"></div>
+                </div>
+                <button class="action-btn btn-create" onclick="window.createRoom()">🏠 創建對戰房間</button>
                 <div class="flex gap-2">
-                    <input type="text" id="room-input" placeholder="Room Code" maxlength="4" style="margin-bottom:0; text-transform: uppercase;">
-                    <button class="action-btn btn-join" style="margin-bottom:0; width: auto; padding: 0 20px;" onclick="window.joinRoom()">Join</button>
+                    <input type="text" id="room-input" placeholder="4位房間碼" maxlength="4" style="text-transform: uppercase;">
+                    <button class="action-btn btn-join" style="width: auto; padding: 0 20px;" onclick="window.joinRoom()">加入</button>
                 </div>
             </div>
         </div>
 
         <div class="intro-card" id="lobby-ui">
-            <h2 class="text-3xl font-extrabold mb-2" style="color: #4a7c59;">Room: <span id="display-room-id" class="text-blue-600"></span></h2>
-            <p class="text-md font-bold mb-4 text-gray-600">Players in lobby:</p>
-            <div id="lobby-players" class="flex flex-wrap justify-center mb-6 min-h-[60px]">
-                <!-- 加入的玩家會顯示在這裡 -->
-            </div>
-            <button class="action-btn btn-create w-full" id="btn-start-battle" onclick="window.triggerGameStart()">🚀 Start Battle Now</button>
-            <p class="text-xs text-gray-400 mt-3">Anyone can start the game when ready.</p>
+            <h2 class="text-2xl font-black mb-1" style="color: #2e593d;">房號：<span id="display-room-id" class="text-blue-600 font-mono"></span></h2>
+            <p class="text-xs font-bold mb-3 text-gray-500">等待其他冒險者加入...</p>
+            <div id="lobby-players" class="flex flex-wrap justify-center mb-6 min-h-[50px]"></div>
+            <button class="action-btn btn-create w-full" id="btn-start-battle" onclick="window.triggerGameStart()">🚀 開始遊戲</button>
         </div>
     </div>
 
-    <!-- 遊戲結束結算 -->
+    <!-- 3. 遊戲結束結算 -->
     <div id="game-over-modal">
         <div class="game-over-content">
-            <div class="text-6xl mb-4">💀</div>
-            <h2 class="text-4xl font-extrabold mb-2 text-red-500">GAME OVER</h2>
-            <p class="text-xl mb-6 font-bold text-gray-600">Final Score: $<span id="final-score" class="text-yellow-500">0</span></p>
-            <button onclick="location.reload()" class="px-6 py-3 rounded-full font-bold text-lg w-full text-white bg-blue-500 hover:bg-blue-600 shadow-lg">Back to Home</button>
+            <div class="text-5xl mb-3">💀</div>
+            <h2 class="text-3xl font-extrabold mb-1 text-red-500">GAME OVER</h2>
+            <p class="text-lg mb-5 font-bold text-gray-600">最終得分：$<span id="final-score" class="text-amber-500">0</span></p>
+            <button onclick="location.reload()" class="px-5 py-3 rounded-xl font-bold text-base w-full text-white bg-blue-500 active:scale-95 transition">返回主頁面</button>
         </div>
     </div>
 
-    <!-- 遊戲主畫面 -->
+    <!-- 4. 遊戲主畫面 -->
     <div id="game-wrapper">
         <div id="ui-layer">
-            <h2 class="text-3xl font-black mb-1" style="color: #0f766e;">💰 $<span id="money" style="color: #b45309;">0</span></h2>
-            <h3 class="text-2xl mb-2" id="lives-display">❤️❤️❤️❤️❤️</h3>
+            <h2 class="text-2xl font-black mb-0.5" style="color: #0f766e;">💰 $<span id="money" style="color: #b45309;">0</span></h2>
+            <h3 class="text-xl" id="lives-display">❤️❤️❤️❤️❤️</h3>
         </div>
 
-        <!-- 雙人/多人連線即時戰況版 -->
         <div id="battle-panel">
-            <h3 class="text-center font-extrabold mb-2 border-b-2 pb-2" style="color: #3f6212; border-color: rgba(0,0,0,0.1);">⚔️ BATTLE HUD</h3>
-            <div id="hud-players-list">
-                <!-- 玩家分數動態產生 -->
-            </div>
+            <h3 class="text-center font-extrabold text-xs mb-1.5 border-b pb-1 text-emerald-800">⚔️ 即時戰況</h3>
+            <div id="hud-players-list"></div>
         </div>
 
         <canvas id="gameCanvas"></canvas>
 
-        <div id="d-pad">
-            <div class="d-btn" id="btn-up">⬆️</div>
-            <div class="d-btn" id="btn-left">⬅️</div>
-            <div class="d-btn" id="btn-right">➡️</div>
-            <div class="d-btn" id="btn-down">⬇️</div>
+        <!-- 360 度虛擬搖桿 -->
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-knob"></div>
+            </div>
         </div>
 
-        <!-- 對話與單字卡介面 -->
+        <!-- 題目與對話視窗 -->
         <div id="dialogue-box">
             <div class="flex justify-between items-center mb-3">
-                <span id="task-title" class="text-blue-600 font-bold uppercase text-sm tracking-wider"></span>
-                <button onclick="window.closeTask()" class="text-gray-500 font-bold hover:text-gray-700 flex items-center gap-1">✖ Close</button>
+                <span id="task-title" class="text-blue-600 font-bold uppercase text-xs tracking-wider"></span>
+                <button onclick="window.closeTask()" class="text-gray-400 font-bold hover:text-gray-600 text-sm">✕ 關閉</button>
             </div>
-            <div class="border border-gray-200 rounded-xl p-4 mb-4 bg-gray-50 relative">
+            <div class="border border-gray-100 rounded-2xl p-3.5 mb-3 bg-gray-50 relative">
                 <div class="flex justify-between items-start">
-                    <div class="text-2xl font-bold text-gray-800 pr-12" id="npc-text"></div>
-                    <div class="flex flex-col gap-2 absolute right-4 top-4">
-                        <button class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl hover:bg-blue-200" onclick="window.speakText(window.currentQuestion.text)">🔊</button>
-                        <button class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-xl hover:bg-yellow-200" onclick="window.toggleTranslation('q-trans')">💡</button>
+                    <div class="text-lg font-bold text-gray-800 pr-10" id="npc-text"></div>
+                    <div class="flex flex-col gap-1.5 absolute right-3 top-3">
+                        <button class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm" onclick="window.speakText(window.currentQuestion.text)">🔊</button>
+                        <button class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm" onclick="window.toggleTranslation('q-trans')">💡</button>
                     </div>
                 </div>
-                <div id="q-trans" class="text-blue-600 font-bold text-base mt-3 hidden"></div>
-                <hr class="my-4 border-gray-200">
+                <div id="q-trans" class="text-blue-600 font-bold text-sm mt-2 hidden"></div>
+                <hr class="my-3 border-gray-200">
                 <div id="vocab-container" class="flex flex-wrap"></div>
             </div>
             <div id="options-container"></div>
         </div>
     </div>
 
-    <!-- 載入 Supabase ESM 模組 -->
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm'
 
@@ -168,7 +305,35 @@
         let roomChannel = null;
         let currentRoomId = "";
         let isMultiplayer = false;
-        let otherPlayers = {}; // 用於儲存其他玩家的即時座標與分數 { 'name': {x, y, emoji, score} }
+        let otherPlayers = {};
+        let joystickVector = { x: 0, y: 0 };
+
+        // 載入歡迎動畫與進度條模擬
+        function simulateLoading() {
+            const bar = document.getElementById('loading-bar');
+            const txt = document.getElementById('loading-text');
+            const splash = document.getElementById('splash-screen');
+            let progress = 0;
+
+            const timer = setInterval(() => {
+                progress += Math.floor(Math.random() * 8) + 4;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(timer);
+                    bar.style.width = '100%';
+                    txt.innerText = '準備完成！進入遊戲...';
+                    setTimeout(() => {
+                        splash.style.opacity = '0';
+                        splash.style.transform = 'scale(1.05)';
+                        setTimeout(() => splash.style.display = 'none', 600);
+                    }, 400);
+                } else {
+                    bar.style.width = `${progress}%`;
+                    txt.innerText = `載入遊戲世界中... ${progress}%`;
+                }
+            }, 60);
+        }
+        window.addEventListener('load', simulateLoading);
 
         const avatars = ['👦', '👧', '🤖', '🦸', '🐼', '🧙', '🦇', '🐭', '🦊', '🐸'];
         const avatarGrid = document.getElementById('avatar-grid');
@@ -199,16 +364,14 @@
             }
         }
 
-        // ================= 單機模式 =================
         window.startSinglePlayer = function() {
             isMultiplayer = false;
             document.getElementById('intro-screen').style.display = 'none';
-            document.getElementById('game-wrapper').style.display = 'flex';
-            document.getElementById('battle-panel').style.display = 'none'; // 隱藏連線 HUD
+            document.getElementById('game-wrapper').style.display = 'block';
+            document.getElementById('battle-panel').style.display = 'none';
             startGame();
         }
 
-        // ================= 多人連線模式 =================
         window.createRoom = function() {
             const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
             joinSupabaseRoom(roomId);
@@ -216,7 +379,7 @@
 
         window.joinRoom = function() {
             const roomId = document.getElementById('room-input').value.trim().toUpperCase();
-            if(roomId.length !== 4) return alert("Please enter a 4-character room code.");
+            if(roomId.length !== 4) return alert("請輸入 4 位英數字房間代碼");
             joinSupabaseRoom(roomId);
         }
 
@@ -227,7 +390,6 @@
             document.getElementById('lobby-ui').style.display = 'block';
             document.getElementById('display-room-id').innerText = roomId;
 
-            // 建立房間頻道
             roomChannel = supabase.channel(`room_${roomId}`, {
                 config: {
                     presence: { key: window.playerName },
@@ -239,71 +401,54 @@
                 .on('presence', { event: 'sync' }, () => {
                     const state = roomChannel.presenceState();
                     const players = Object.keys(state);
-                    
-                    // 更新大廳玩家列表
                     const lobbyDiv = document.getElementById('lobby-players');
                     lobbyDiv.innerHTML = '';
                     players.forEach(pName => {
                         const tag = document.createElement('div');
                         tag.className = 'player-tag';
-                        // 嘗試抓取 state 中挾帶的 emoji (如果有的話)
                         const pEmoji = state[pName][0]?.emoji || '👤'; 
                         tag.innerText = `${pEmoji} ${pName}`;
                         lobbyDiv.appendChild(tag);
                     });
                 })
-                .on('broadcast', { event: 'start_game' }, () => {
-                    // 接收到任何人的開始指令，進入遊戲
-                    enterMultiplayerGame();
-                })
-                .on('broadcast', { event: 'player_sync' }, (payload) => {
-                    // 接收對手的即時座標與分數更新
+                .on('broadcast', { event: 'start_game' }, () => enterMultiplayerGame())
+                .on('broadcast', { event: 'player_sync' }, ({ payload }) => {
+                    if (!payload || !payload.name) return;
                     otherPlayers[payload.name] = {
-                        x: payload.x,
-                        y: payload.y,
-                        emoji: payload.emoji,
-                        score: payload.score
+                        x: payload.x ?? 1000,
+                        y: payload.y ?? 1000,
+                        emoji: payload.emoji || '👤',
+                        score: payload.score ?? 0
                     };
                     updateBattleHUD();
                 })
                 .subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        // 註冊時附帶自己的 emoji
                         await roomChannel.track({ ready: true, emoji: window.playerEmoji });
                     }
                 });
         }
 
-        // 大廳內的 Start Battle 按鈕
         window.triggerGameStart = function() {
             if(roomChannel) {
-                // 廣播給所有人一起開始
                 roomChannel.send({ type: 'broadcast', event: 'start_game' });
-                enterMultiplayerGame(); // 自己也進入
+                enterMultiplayerGame();
             }
         }
 
         function enterMultiplayerGame() {
             document.getElementById('intro-screen').style.display = 'none';
-            document.getElementById('game-wrapper').style.display = 'flex';
+            document.getElementById('game-wrapper').style.display = 'block';
             document.getElementById('battle-panel').style.display = 'block';
-            updateBattleHUD(); // 初始化 HUD
+            updateBattleHUD();
             startGame();
-            
-            // 啟動廣播循環 (每 100 毫秒廣播一次自己的狀態給其他人)
             setInterval(broadcastMyState, 100);
         }
 
-        // 廣播自己的動態 (位置與分數)
         let lastBroadcastX = -1, lastBroadcastY = -1, lastBroadcastScore = -1;
         function broadcastMyState() {
             if (!isMultiplayer || !roomChannel) return;
-            
-            // 只有在移動或分數改變時才廣播，節省頻寬
-            if (Math.abs(player.x - lastBroadcastX) > 2 || 
-                Math.abs(player.y - lastBroadcastY) > 2 || 
-                window.money !== lastBroadcastScore) {
-                
+            if (Math.abs(player.x - lastBroadcastX) > 2 || Math.abs(player.y - lastBroadcastY) > 2 || window.money !== lastBroadcastScore) {
                 roomChannel.send({
                     type: 'broadcast',
                     event: 'player_sync',
@@ -315,42 +460,40 @@
                         score: window.money 
                     }
                 });
-                
                 lastBroadcastX = player.x;
                 lastBroadcastY = player.y;
                 lastBroadcastScore = window.money;
             }
         }
 
-        // 更新多人對戰 HUD 面板
         function updateBattleHUD() {
             const hudContainer = document.getElementById('hud-players-list');
+            if (!hudContainer) return;
             hudContainer.innerHTML = '';
-            
-            // 整理所有玩家名單 (自己 + 其他玩家)
+
             let allFighters = [
-                { name: window.playerName + " (Me)", score: window.money, isMe: true }
+                { name: (window.playerName || '我') + " (我)", score: window.money ?? 0, isMe: true }
             ];
-            
+
             for (const [pName, pData] of Object.entries(otherPlayers)) {
-                allFighters.push({ name: pName, score: pData.score, isMe: false });
+                if (!pName || pName === 'undefined') continue;
+                allFighters.push({ 
+                    name: pName, 
+                    score: pData?.score ?? 0, 
+                    isMe: false 
+                });
             }
-            
-            // 依照分數排序
+
             allFighters.sort((a, b) => b.score - a.score);
-            
+
             allFighters.forEach(f => {
                 let row = document.createElement('div');
                 row.className = `vs-row ${f.isMe ? 'vs-me' : 'vs-enemy'}`;
-                row.innerHTML = `<span class="truncate pr-2">${f.name}</span><span>$${f.score}</span>`;
+                row.innerHTML = `<span class="truncate pr-1">${f.name}</span><span>$${f.score}</span>`;
                 hudContainer.appendChild(row);
             });
         }
 
-
-        // ==========================================
-        // 遊戲核心邏輯 (地圖繪製與 36 題庫)
-        // ==========================================
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const WORLD_SIZE = 2000;
@@ -398,52 +541,23 @@
 
         const questionBank = {
             'chef': [
-                { text: "Do you have any food allergies?", zh: "您有任何食物過敏嗎？", vocab: [{en: "food", zh: "食物"}, {en: "allergies", zh: "過敏"}], options: [{ text: "Yes, I am allergic to peanuts.", zh: "是的，我對花生過敏。", correct: true }, { text: "I like to drink water.", zh: "我喜歡喝水。", correct: false }, { text: "The restaurant is very noisy.", zh: "這間餐廳很吵。", correct: false }] },
-                { text: "Would you like to pay with cash or card?", zh: "您想付現金還是刷卡？", vocab: [{en: "cash", zh: "現金"}, {en: "card", zh: "卡片"}], options: [{ text: "By credit card, please.", zh: "請刷卡。", correct: true }, { text: "I want to wash hands.", zh: "我想洗手。", correct: false }, { text: "Yes, I like cards.", zh: "是的，我喜歡卡片。", correct: false }] },
-                { text: "How would you like your steak done?", zh: "您的牛排想要幾分熟？", vocab: [{en: "steak", zh: "牛排"}, {en: "done", zh: "熟度"}], options: [{ text: "Medium well, please.", zh: "七分熟，謝謝。", correct: true }, { text: "Very hot, please.", zh: "請弄很熱。", correct: false }, { text: "I am full.", zh: "我飽了。", correct: false }] },
-                { text: "Can I get you anything to drink?", zh: "需要幫您點些飲料嗎？", vocab: [{en: "drink", zh: "飲料/喝"}], options: [{ text: "Just water is fine, thank you.", zh: "水就可以了，謝謝。", correct: true }, { text: "I want to eat chicken.", zh: "我想吃雞肉。", correct: false }, { text: "The glass is empty.", zh: "杯子是空的。", correct: false }] },
-                { text: "Are you ready to order?", zh: "您準備好點餐了嗎？", vocab: [{en: "ready", zh: "準備好的"}, {en: "order", zh: "點餐"}], options: [{ text: "Yes, I'll have the pasta.", zh: "是的，我要義大利麵。", correct: true }, { text: "I am reading a book.", zh: "我在看書。", correct: false }, { text: "No, I am not tired.", zh: "不，我不累。", correct: false }] },
-                { text: "Would you like to see the dessert menu?", zh: "您想看看甜點菜單嗎？", vocab: [{en: "dessert", zh: "甜點"}, {en: "menu", zh: "菜單"}], options: [{ text: "Yes, I'd love a slice of cake.", zh: "好啊，我想來塊蛋糕。", correct: true }, { text: "I like spicy food.", zh: "我喜歡吃辣。", correct: false }, { text: "The bill, please.", zh: "麻煩結帳。", correct: false }] }
+                { text: "Do you have any food allergies?", zh: "您有任何食物過敏嗎？", vocab: [{en: "food", zh: "食物"}, {en: "allergies", zh: "過敏"}], options: [{ text: "Yes, I am allergic to peanuts.", zh: "是的，我對花生過敏。", correct: true }, { text: "I like to drink water.", zh: "我喜歡喝水。", correct: false }] },
+                { text: "Would you like to pay with cash or card?", zh: "您想付現金還是刷卡？", vocab: [{en: "cash", zh: "現金"}, {en: "card", zh: "卡片"}], options: [{ text: "By credit card, please.", zh: "請刷卡。", correct: true }, { text: "I want to wash hands.", zh: "我想洗手。", correct: false }] }
             ],
             'police': [
-                { text: "I lost my wallet. What should I do?", zh: "我弄丟了錢包。我該怎麼辦？", vocab: [{en: "lost", zh: "遺失"}, {en: "wallet", zh: "錢包"}], options: [{ text: "Let's file a police report.", zh: "我們來填報案單吧。", correct: true }, { text: "Go to the supermarket.", zh: "去超市。", correct: false }, { text: "I found a dog.", zh: "我找到一隻狗。", correct: false }] },
-                { text: "Excuse me, how do I get to the train station?", zh: "不好意思，去火車站怎麼走？", vocab: [{en: "train station", zh: "火車站"}], options: [{ text: "Go straight and turn left.", zh: "直走然後左轉。", correct: true }, { text: "It is very big.", zh: "它很大。", correct: false }, { text: "The train is fast.", zh: "火車很快。", correct: false }] },
-                { text: "Is it safe to walk here at night?", zh: "晚上走這裡安全嗎？", vocab: [{en: "safe", zh: "安全的"}, {en: "night", zh: "夜晚"}], options: [{ text: "Yes, there are streetlights.", zh: "是的，這裡有路燈。", correct: true }, { text: "I like walking.", zh: "我喜歡走路。", correct: false }, { text: "The sun is shining.", zh: "陽光明媚。", correct: false }] },
-                { text: "Did you see anyone suspicious around here?", zh: "你有看到附近有可疑的人嗎？", vocab: [{en: "suspicious", zh: "可疑的"}, {en: "around", zh: "在...周圍"}], options: [{ text: "No, everyone looked normal.", zh: "沒有，大家都看起來很正常。", correct: true }, { text: "I am looking for my keys.", zh: "我在找鑰匙。", correct: false }, { text: "He is my best friend.", zh: "他是我最好的朋友。", correct: false }] },
-                { text: "Please keep your belongings close to you.", zh: "請隨身保管好您的隨身物品。", vocab: [{en: "belongings", zh: "隨身物品"}, {en: "close", zh: "靠近"}], options: [{ text: "Thank you for the reminder.", zh: "謝謝您的提醒。", correct: true }, { text: "I like this bag.", zh: "我喜歡這個包包。", correct: false }, { text: "The door is closed.", zh: "門關著。", correct: false }] },
-                { text: "Do you need help crossing the street?", zh: "你需要幫忙過馬路嗎？", vocab: [{en: "help", zh: "幫助"}, {en: "crossing", zh: "穿越"}], options: [{ text: "Yes, please. The traffic is heavy.", zh: "是的，麻煩了。車流量很大。", correct: true }, { text: "I am driving a car.", zh: "我在開車。", correct: false }, { text: "The light is red.", zh: "現在是紅燈。", correct: false }] }
+                { text: "I lost my wallet. What should I do?", zh: "我弄丟了錢包。我該怎麼辦？", vocab: [{en: "lost", zh: "遺失"}, {en: "wallet", zh: "錢包"}], options: [{ text: "Let's file a police report.", zh: "我們來填報案單吧。", correct: true }, { text: "Go to the supermarket.", zh: "去超市。", correct: false }] }
             ],
             'teacher': [
-                { text: "May I go to the restroom?", zh: "我可以去洗手間嗎？", vocab: [{en: "restroom", zh: "洗手間"}], options: [{ text: "Yes, but please be quick.", zh: "可以，但請快點回來。", correct: true }, { text: "I have an apple.", zh: "我有一顆蘋果。", correct: false }, { text: "No, you are a student.", zh: "不行，你是學生。", correct: false }] },
-                { text: "When is our math homework due?", zh: "我們的數學作業什麼時候交？", vocab: [{en: "math", zh: "數學"}, {en: "homework", zh: "作業"}, {en: "due", zh: "到期"}], options: [{ text: "It's due next Monday.", zh: "下週一交。", correct: true }, { text: "I don't like math.", zh: "我不喜歡數學。", correct: false }, { text: "The book is heavy.", zh: "這本書很重。", correct: false }] },
-                { text: "Where can we buy apples?", zh: "我們可以去哪裡買蘋果？", vocab: [{en: "buy", zh: "買"}], options: [{ text: "At the supermarket.", zh: "在超市。", correct: true }, { text: "At the hospital.", zh: "在醫院。", correct: false }, { text: "Apples are red.", zh: "蘋果是紅色的。", correct: false }] },
-                { text: "Please open your book to page 42.", zh: "請把書打開翻到第 42 頁。", vocab: [{en: "open", zh: "打開"}, {en: "page", zh: "頁面"}], options: [{ text: "Got it, page 42.", zh: "知道了，第 42 頁。", correct: true }, { text: "The door is open.", zh: "門開著。", correct: false }, { text: "I am 42 years old.", zh: "我 42 歲。", correct: false }] },
-                { text: "Did everyone understand the lesson?", zh: "大家都有聽懂這堂課嗎？", vocab: [{en: "understand", zh: "了解/聽懂"}, {en: "lesson", zh: "課程"}], options: [{ text: "Yes, it was very clear.", zh: "是的，非常清楚。", correct: true }, { text: "I stand here.", zh: "我站在這裡。", correct: false }, { text: "The lesson is long.", zh: "這堂課很長。", correct: false }] },
-                { text: "Don't forget to study for the quiz tomorrow.", zh: "別忘了準備明天的隨堂測驗。", vocab: [{en: "forget", zh: "忘記"}, {en: "quiz", zh: "測驗"}], options: [{ text: "I will review my notes tonight.", zh: "我今晚會複習筆記。", correct: true }, { text: "I forgot my pencil.", zh: "我忘記帶鉛筆了。", correct: false }, { text: "Tomorrow is Sunday.", zh: "明天是星期日。", correct: false }] }
+                { text: "May I go to the restroom?", zh: "我可以去洗手間嗎？", vocab: [{en: "restroom", zh: "洗手間"}], options: [{ text: "Yes, but please be quick.", zh: "可以，但請快點回來。", correct: true }, { text: "I have an apple.", zh: "我有一顆蘋果。", correct: false }] }
             ],
             'spidey': [
-                { text: "My suit is torn. Do you know a good tailor?", zh: "我的戰衣破了。你知道哪裡有好的裁縫嗎？", vocab: [{en: "suit", zh: "戰衣"}, {en: "torn", zh: "破掉的"}], options: [{ text: "There's a clothing shop nearby.", zh: "附近有一家服飾店。", correct: true }, { text: "I want to sleep.", zh: "我想睡覺。", correct: false }, { text: "The train is arriving.", zh: "火車要進站了。", correct: false }] },
-                { text: "I need to get to the top of that skyscraper fast!", zh: "我需要快點到那棟摩天大樓的頂樓！", vocab: [{en: "skyscraper", zh: "摩天大樓"}], options: [{ text: "You can take the elevator inside.", zh: "你可以搭裡面的電梯。", correct: true }, { text: "Just run away.", zh: "跑走就好。", correct: false }, { text: "Spider is an insect.", zh: "蜘蛛是昆蟲。", correct: false }] },
-                { text: "I am out of web fluid. Where can I buy chemicals?", zh: "我的蛛網液用完了。哪裡可以買到化學藥劑？", vocab: [{en: "fluid", zh: "液體"}, {en: "chemicals", zh: "化學藥劑"}], options: [{ text: "Try the science lab at school.", zh: "去學校的科學實驗室看看。", correct: true }, { text: "At the cafe.", zh: "在咖啡廳。", correct: false }, { text: "Water is a fluid.", zh: "水是一種液體。", correct: false }] },
-                { text: "Watch out! The villain is escaping down the alley!", zh: "小心！壞人正沿著小巷逃跑！", vocab: [{en: "villain", zh: "壞人/反派"}, {en: "escaping", zh: "逃跑"}], options: [{ text: "I'll try to block the exit!", zh: "我來試著堵住出口！", correct: true }, { text: "I am watching TV.", zh: "我在看電視。", correct: false }, { text: "The alley is dark.", zh: "小巷很暗。", correct: false }] },
-                { text: "Who is your favorite superhero?", zh: "你最喜歡的超級英雄是誰？", vocab: [{en: "favorite", zh: "最喜歡的"}, {en: "superhero", zh: "超級英雄"}], options: [{ text: "You are the best, Spidey!", zh: "你是最棒的，蜘蛛人！", correct: true }, { text: "I like pizza.", zh: "我喜歡披薩。", correct: false }, { text: "My dad is a hero.", zh: "我爸爸是個英雄。", correct: false }] },
-                { text: "It's hard balancing school and saving the city.", zh: "要兼顧學業和拯救城市真的很難。", vocab: [{en: "balancing", zh: "平衡/兼顧"}, {en: "saving", zh: "拯救"}], options: [{ text: "Make sure you get enough sleep.", zh: "要確保你有充足的睡眠。", correct: true }, { text: "The school is closed.", zh: "學校關門了。", correct: false }, { text: "I am saving money.", zh: "我在存錢。", correct: false }] }
+                { text: "My suit is torn. Do you know a good tailor?", zh: "我的戰衣破了。你知道哪裡有好的裁縫嗎？", vocab: [{en: "suit", zh: "戰衣"}], options: [{ text: "There's a clothing shop nearby.", zh: "附近有一家服飾店。", correct: true }, { text: "I want to sleep.", zh: "我想睡覺。", correct: false }] }
             ],
             'conductor': [
-                { text: "You can take the express train, ___ you can take the bus.", zh: "你可以搭快車，___你可以搭公車。", vocab: [{en: "express train", zh: "快車"}], options: [{ text: "or", zh: "或者", correct: true }, { text: "yet", zh: "然而", correct: false }, { text: "for", zh: "因為", correct: false }] },
-                { text: "I wanted to buy a ticket, ___ I forgot my wallet.", zh: "我想買票，___我忘了帶錢包。", vocab: [{en: "ticket", zh: "票"}], options: [{ text: "but", zh: "但是", correct: true }, { text: "so", zh: "所以", correct: false }, { text: "and", zh: "和/而且", correct: false }] },
-                { text: "The train was late, ___ we missed our meeting.", zh: "火車誤點了，___我們錯過了會議。", vocab: [{en: "missed", zh: "錯過"}], options: [{ text: "so", zh: "所以", correct: true }, { text: "for", zh: "因為", correct: false }, { text: "yet", zh: "然而", correct: false }] },
-                { text: "He doesn't like traveling by train, ___ does he like flying.", zh: "他不喜歡搭火車旅行，___他也不喜歡搭飛機。", vocab: [{en: "traveling", zh: "旅行"}], options: [{ text: "nor", zh: "也不", correct: true }, { text: "or", zh: "或者", correct: false }, { text: "but", zh: "但是", correct: false }] },
-                { text: "We can sit by the window, ___ we can sit in the aisle seat.", zh: "我們可以坐在窗邊，___我們可以坐在走道座位。", vocab: [{en: "aisle seat", zh: "走道座位"}], options: [{ text: "and", zh: "和/而且", correct: true }, { text: "yet", zh: "然而", correct: false }, { text: "so", zh: "所以", correct: false }] },
-                { text: "I am very tired, ___ I will finish reading this book.", zh: "我很累，___我會把這本書看完。", vocab: [{en: "tired", zh: "疲累的"}], options: [{ text: "yet", zh: "然而", correct: true }, { text: "for", zh: "因為", correct: false }, { text: "nor", zh: "也不", correct: false }] }
+                { text: "You can take the express train, ___ you can take the bus.", zh: "你可以搭快車，___你可以搭公車。", vocab: [{en: "express train", zh: "快車"}], options: [{ text: "or", zh: "或者", correct: true }, { text: "yet", zh: "然而", correct: false }] }
             ],
             'ghost': [
-                { text: "Trick or ___! Give me something good to eat!", zh: "不給糖就搗蛋！給我些好吃的！", vocab: [{en: "Trick", zh: "惡作劇/搗蛋"}, {en: "something", zh: "某物"}], options: [{ text: "treat", zh: "請客/糖果", correct: true }, { text: "tree", zh: "樹", correct: false }, { text: "train", zh: "火車", correct: false }] },
-                { text: "I need a pumpkin to make a ___.", zh: "我需要一顆南瓜來做___。", vocab: [{en: "pumpkin", zh: "南瓜"}, {en: "make", zh: "製作"}], options: [{ text: "jack-o'-lantern", zh: "南瓜燈", correct: true }, { text: "apple pie", zh: "蘋果派", correct: false }, { text: "ghost", zh: "幽靈", correct: false }] },
-                { text: "What are you going to ___ up as for Halloween?", zh: "萬聖節你打算扮成什麼？", vocab: [{en: "Halloween", zh: "萬聖節"}], options: [{ text: "dress", zh: "打扮", correct: true }, { text: "wear", zh: "穿著", correct: false }, { text: "look", zh: "看起來", correct: false }] },
-                { text: "Be careful! The old house is full of ___ webs.", zh: "小心！這棟老房子充滿了___網。", vocab: [{en: "careful", zh: "小心的"}, {en: "webs", zh: "網"}], options: [{ text: "spider", zh: "蜘蛛", correct: true }, { text: "bat", zh: "蝙蝠", correct: false }, { text: "bird", zh: "鳥", correct: false }] },
-                { text: "Did you hear that noise? I think this place is ___.", zh: "你聽見那個聲音了嗎？我覺得這個地方___。", vocab: [{en: "noise", zh: "噪音"}, {en: "hear", zh: "聽見"}], options: [{ text: "haunted", zh: "鬧鬼的", correct: true }, { text: "clean", zh: "乾淨的", correct: false }, { text: "empty", zh: "空的", correct: false }] },
-                { text: "Look at the sky! There are so many ___ flying.", zh: "看天空！有好多___在飛。", vocab: [{en: "sky", zh: "天空"}, {en: "flying", zh: "飛行"}], options: [{ text: "bats", zh: "蝙蝠", correct: true }, { text: "cats", zh: "貓", correct: false }, { text: "dogs", zh: "狗", correct: false }] }
+                { text: "Trick or ___! Give me something good to eat!", zh: "不給糖就搗蛋！給我些好吃的！", vocab: [{en: "Trick", zh: "惡作劇/搗蛋"}], options: [{ text: "treat", zh: "請客/糖果", correct: true }, { text: "tree", zh: "樹", correct: false }] }
             ]
         };
 
@@ -461,6 +575,7 @@
         function startGame() {
             resize();
             updateLivesDisplay();
+            initVirtualJoystick();
             requestAnimationFrame(gameLoop);
         }
 
@@ -471,33 +586,140 @@
         }
 
         window.addEventListener('resize', resize);
-        function resize() { viewport.w = canvas.width = window.innerWidth; viewport.h = canvas.height = window.innerHeight; }
+        function resize() { 
+            viewport.w = canvas.width = window.innerWidth; 
+            viewport.h = canvas.height = window.innerHeight; 
+        }
         
         window.addEventListener('keydown', e => { keys[e.code] = true; });
         window.addEventListener('keyup', e => { keys[e.code] = false; });
-        const dpadMap = { 'btn-up': 'KeyW', 'btn-down': 'KeyS', 'btn-left': 'KeyA', 'btn-right': 'KeyD' };
-        for (let [id, code] of Object.entries(dpadMap)) {
-            let btn = document.getElementById(id);
-            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[code] = true; }, {passive: false});
-            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[code] = false; }, {passive: false});
-            btn.addEventListener('mousedown', () => { keys[code] = true; });
-            btn.addEventListener('mouseup', () => { keys[code] = false; });
-            btn.addEventListener('mouseleave', () => { keys[code] = false; });
+
+        // ================= 虛擬搖桿初始化 (自動偵測手機與觸控環境) =================
+        function initVirtualJoystick() {
+            const zone = document.getElementById('joystick-zone');
+            const base = document.getElementById('joystick-base');
+            const knob = document.getElementById('joystick-knob');
+            if (!zone || !base || !knob) return;
+
+            // 只要是觸控裝置或是窄螢幕就必定啟用搖桿
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 1024;
+            if (isTouchDevice) {
+                zone.style.display = 'flex';
+            }
+
+            const maxRadius = 45;
+            let activeTouchId = null;
+
+            function handleMove(clientX, clientY) {
+                const rect = base.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                const deltaX = clientX - centerX;
+                const deltaY = clientY - centerY;
+                const distance = Math.hypot(deltaX, deltaY);
+
+                if (distance === 0) {
+                    joystickVector = { x: 0, y: 0 };
+                    knob.style.transform = `translate(0px, 0px)`;
+                    return;
+                }
+
+                const clampedDist = Math.min(distance, maxRadius);
+                const angle = Math.atan2(deltaY, deltaX);
+                const knobX = Math.cos(angle) * clampedDist;
+                const knobY = Math.sin(angle) * clampedDist;
+
+                knob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+                const intensity = clampedDist / maxRadius;
+                if (intensity > 0.08) {
+                    joystickVector = {
+                        x: Math.cos(angle) * intensity,
+                        y: Math.sin(angle) * intensity
+                    };
+                } else {
+                    joystickVector = { x: 0, y: 0 };
+                }
+            }
+
+            function resetJoystick() {
+                activeTouchId = null;
+                joystickVector = { x: 0, y: 0 };
+                zone.classList.remove('active');
+                knob.style.transition = 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                knob.style.transform = `translate(0px, 0px)`;
+            }
+
+            zone.addEventListener('touchstart', (e) => {
+                if (activeTouchId !== null) return;
+                const touch = e.changedTouches[0];
+                activeTouchId = touch.identifier;
+                zone.classList.add('active');
+                knob.style.transition = 'none';
+                handleMove(touch.clientX, touch.clientY);
+            }, { passive: false });
+
+            window.addEventListener('touchmove', (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        handleMove(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                        break;
+                    }
+                }
+            }, { passive: false });
+
+            const endTouch = (e) => {
+                if (activeTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === activeTouchId) {
+                        resetJoystick();
+                        break;
+                    }
+                }
+            };
+            window.addEventListener('touchend', endTouch);
+            window.addEventListener('touchcancel', endTouch);
+
+            // 滑鼠除錯支援
+            let isMouseDown = false;
+            zone.addEventListener('mousedown', (e) => {
+                isMouseDown = true;
+                zone.classList.add('active');
+                knob.style.transition = 'none';
+                handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!isMouseDown) return;
+                handleMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', () => {
+                if (!isMouseDown) return;
+                isMouseDown = false;
+                resetJoystick();
+            });
         }
 
         function update() {
             if (inDialogue || window.lives <= 0) return;
             let moveX = 0, moveY = 0;
+
             if (keys['KeyW'] || keys['ArrowUp']) moveY -= player.speed;
             if (keys['KeyS'] || keys['ArrowDown']) moveY += player.speed;
             if (keys['KeyA'] || keys['ArrowLeft']) moveX -= player.speed;
             if (keys['KeyD'] || keys['ArrowRight']) moveX += player.speed;
 
+            if (joystickVector.x !== 0 || joystickVector.y !== 0) {
+                moveX += joystickVector.x * player.speed;
+                moveY += joystickVector.y * player.speed;
+            }
+
             player.x = Math.max(20, Math.min(WORLD_SIZE - 20, player.x + moveX));
             player.y = Math.max(20, Math.min(WORLD_SIZE - 20, player.y + moveY));
 
             npcList.forEach(n => {
-                if (Math.hypot(player.x - n.x, player.y - n.y) < 50) {
+                if (Math.hypot(player.x - n.x, player.y - n.y) < 55) {
                     activeNPC = n;
                     openTask(n.id);
                 }
@@ -507,7 +729,6 @@
         function drawPalmTree(ctx, x, y) {
             ctx.fillStyle = '#4a7c59'; ctx.save(); ctx.translate(x, y);
             for(let i=0; i<6; i++) { ctx.rotate(Math.PI / 3); ctx.beginPath(); ctx.ellipse(0, 20, 5, 25, 0, 0, Math.PI * 2); ctx.fill(); }
-            ctx.fillStyle = 'rgba(0,0,0,0.1)'; ctx.beginPath(); ctx.ellipse(15, 15, 20, 20, 0, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
 
@@ -537,61 +758,46 @@
                 ctx.stroke();
             });
             ctx.setLineDash([]); 
-            
-            ctx.fillStyle = '#ffffff';
-            for(let i=0; i<4; i++) {
-                ctx.fillRect(780, 720 + i*15, 30, 8); ctx.fillRect(950, 720 + i*15, 30, 8);
-                ctx.fillRect(820 + i*15, 680, 8, 30); ctx.fillRect(820 + i*15, 850, 8, 30);
-            }
 
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             bushes.forEach(b => drawBush(ctx, b.x, b.y));
 
             buildings.forEach(b => {
-                ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(b.x - 20, b.y - 20, b.w + 40, b.h + 60);
                 ctx.fillStyle = b.baseColor; ctx.fillRect(b.x, b.y, b.w, b.h);
                 ctx.fillStyle = b.roofColor; ctx.fillRect(b.x + 10, b.y + 10, b.w - 20, b.h - 20);
-
                 if(b.hasPool) {
-                    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(b.x + b.w + 30, b.y + 20, 100, 70);
-                    ctx.fillStyle = '#73b6b8'; ctx.fillRect(b.x + b.w + 35, b.y + 25, 90, 60);
+                    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(b.x + b.w + 20, b.y + 20, 90, 60);
+                    ctx.fillStyle = '#73b6b8'; ctx.fillRect(b.x + b.w + 25, b.y + 25, 80, 50);
                 }
-                
-                ctx.font = '50px Arial'; ctx.fillText(b.emoji, b.x + b.w / 2, b.y + b.h / 2 - 10);
-                ctx.font = 'bold 16px Arial'; ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                let tw = ctx.measureText(b.name).width;
-                ctx.fillRect(b.x + b.w / 2 - tw/2 - 10, b.y - 30, tw + 20, 26);
-                ctx.fillStyle = 'white'; ctx.fillText(b.name, b.x + b.w / 2, b.y - 16);
+                ctx.font = '45px Arial'; ctx.fillText(b.emoji, b.x + b.w / 2, b.y + b.h / 2 - 10);
+                ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'white'; ctx.fillText(b.name, b.x + b.w / 2, b.y - 12);
             });
 
             trees.forEach(t => drawPalmTree(ctx, t.x, t.y));
 
             npcList.forEach(n => {
-                ctx.font = '45px Arial'; ctx.fillText(n.emoji, n.x, n.y);
-                ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                ctx.font = '40px Arial'; ctx.fillText(n.emoji, n.x, n.y);
+                ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(0,0,0,0.6)';
                 let tw = ctx.measureText(n.role).width;
-                ctx.fillRect(n.x - tw/2 - 8, n.y - 45, tw + 16, 22);
-                ctx.fillStyle = 'white'; ctx.fillText(n.role, n.x, n.y - 34);
+                ctx.fillRect(n.x - tw/2 - 6, n.y - 40, tw + 12, 20);
+                ctx.fillStyle = 'white'; ctx.fillText(n.role, n.x, n.y - 30);
             });
 
-            // ==== 繪製其他連線玩家的即時動態 ====
             if (isMultiplayer) {
                 for (const [pName, pData] of Object.entries(otherPlayers)) {
-                    ctx.font = '45px Arial'; ctx.fillText(pData.emoji, pData.x, pData.y);
-                    // 繪製其他玩家的名牌
-                    ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.font = '40px Arial'; ctx.fillText(pData.emoji, pData.x, pData.y);
+                    ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
                     let ptw = ctx.measureText(pName).width;
-                    ctx.fillRect(pData.x - ptw/2 - 8, pData.y - 45, ptw + 16, 22);
-                    ctx.fillStyle = '#333'; ctx.fillText(pName, pData.x, pData.y - 34);
+                    ctx.fillRect(pData.x - ptw/2 - 6, pData.y - 40, ptw + 12, 20);
+                    ctx.fillStyle = '#1e293b'; ctx.fillText(pName, pData.x, pData.y - 30);
                 }
             }
 
-            // 繪製自己
-            ctx.font = '45px Arial'; ctx.fillText(window.playerEmoji, player.x, player.y);
-            ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = '42px Arial'; ctx.fillText(window.playerEmoji, player.x, player.y);
+            ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             let myTw = ctx.measureText(window.playerName).width;
-            ctx.fillRect(player.x - myTw/2 - 8, player.y - 45, myTw + 16, 22);
-            ctx.fillStyle = '#333'; ctx.fillText(window.playerName, player.x, player.y - 34);
+            ctx.fillRect(player.x - myTw/2 - 6, player.y - 40, myTw + 12, 20);
+            ctx.fillStyle = '#1e293b'; ctx.fillText(window.playerName, player.x, player.y - 30);
 
             ctx.restore();
         }
@@ -619,8 +825,9 @@
 
         function openTask(npcId) {
             inDialogue = true; keys = {};
+            joystickVector = { x: 0, y: 0 };
             if (!window.npcQueues[npcId] || window.npcQueues[npcId].length === 0) {
-                window.npcQueues[npcId] = shuffleArray(questionBank[npcId]);
+                window.npcQueues[npcId] = shuffleArray(questionBank[npcId] || questionBank['chef']);
             }
             window.currentQuestion = window.npcQueues[npcId].pop();
             
@@ -646,23 +853,15 @@
 
             shuffledOptions.forEach((opt, idx) => {
                 let btn = document.createElement('div'); btn.className = 'option-btn';
-                let optVocabHTML = '';
-                if (opt.vocab) {
-                    opt.vocab.forEach((v, vIdx) => {
-                        const safeEn = v.en.replace(/'/g, "\\'");
-                        optVocabHTML += `<div class="vocab-pill mt-2" onclick="event.stopPropagation();">${v.en} <button class="tool-btn-small" onclick="event.stopPropagation(); window.speakText('${safeEn}')">🔊</button><button class="tool-btn-small" onclick="event.stopPropagation(); window.toggleTranslation('opt-v-trans-${idx}-${vIdx}')">💡</button><span id="opt-v-trans-${idx}-${vIdx}" class="ml-2 text-blue-500 font-normal" style="display:none;">${v.zh}</span></div>`;
-                    });
-                }
                 const safeOptEn = opt.text.replace(/'/g, "\\'");
                 btn.innerHTML = `
-                    <div class="flex-1 pr-4 cursor-pointer" onclick="window.handleAnswer(event, ${opt.correct})">
-                        <div class="text-lg font-semibold mb-1">${opt.text}</div>
-                        <div id="opt-trans-${idx}" class="text-blue-600 font-bold mb-2 hidden">${opt.zh}</div>
-                        <div class="flex flex-wrap">${optVocabHTML}</div>
+                    <div class="flex-1 pr-3" onclick="window.handleAnswer(event, ${opt.correct})">
+                        <div class="text-base font-semibold mb-1">${opt.text}</div>
+                        <div id="opt-trans-${idx}" class="text-blue-600 font-bold mb-1 hidden text-sm">${opt.zh}</div>
                     </div>
-                    <div class="flex flex-col gap-2">
-                        <button class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center hover:bg-blue-200" onclick="event.stopPropagation(); window.speakText('${safeOptEn}')">🔊</button>
-                        <button class="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center hover:bg-yellow-200" onclick="event.stopPropagation(); window.toggleTranslation('opt-trans-${idx}')">💡</button>
+                    <div class="flex flex-col gap-1.5">
+                        <button class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm" onclick="event.stopPropagation(); window.speakText('${safeOptEn}')">🔊</button>
+                        <button class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm" onclick="event.stopPropagation(); window.toggleTranslation('opt-trans-${idx}')">💡</button>
                     </div>
                 `;
                 optCont.appendChild(btn);
@@ -672,14 +871,13 @@
 
         window.handleAnswer = function(event, isCorrect) {
             let card = event.currentTarget.closest('.option-btn');
-            let allCards = document.querySelectorAll('.option-btn');
-            allCards.forEach(c => c.style.pointerEvents = 'none');
+            document.querySelectorAll('.option-btn').forEach(c => c.style.pointerEvents = 'none');
 
             if (isCorrect) {
                 card.style.backgroundColor = '#dcfce7'; card.style.borderColor = '#22c55e'; 
                 window.money += 20;
                 document.getElementById('money').innerText = window.money;
-                updateBattleHUD(); // 自己分數增加也更新一下畫面
+                updateBattleHUD();
             } else {
                 card.style.backgroundColor = '#fee2e2'; card.style.borderColor = '#ef4444'; 
                 window.lives -= 1;
