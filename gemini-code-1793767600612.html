@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>A-Teamverse: Supabase Battle</title>
+    <title>A-Teamverse: Realtime Multiplayer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #a8c3b5; touch-action: none; font-family: 'Inter', sans-serif; }
@@ -12,7 +12,7 @@
         
         /* 登入與大廳介面 */
         #intro-screen { position: absolute; inset: 0; background: #a8c3b5; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #334155; }
-        .intro-card { background: rgba(255, 255, 255, 0.9); padding: 40px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; max-width: 95%; width: 400px; }
+        .intro-card { background: rgba(255, 255, 255, 0.95); padding: 40px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; max-width: 95%; width: 420px; }
         #name-input, #room-input { padding: 12px 20px; border-radius: 12px; border: 3px solid #98c9c6; background: #ffffff; color: #334155; font-size: 18px; margin-bottom: 20px; outline: none; text-align: center; width: 100%; font-weight: bold; }
         #name-input:focus, #room-input:focus { border-color: #4a7c59; }
         
@@ -20,13 +20,16 @@
         .avatar-btn { font-size: 32px; background: #f1f5f9; border: 3px solid #cbd5e1; border-radius: 16px; padding: 8px; cursor: pointer; transition: all 0.2s; user-select: none; display: flex; justify-content: center; align-items: center; }
         .avatar-btn.selected { border-color: #4a7c59; background: #ffffff; transform: scale(1.1); box-shadow: 0 4px 12px rgba(74, 124, 89, 0.3); }
         
-        .action-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
+        .action-btn { width: 100%; padding: 15px; font-size: 18px; font-weight: bold; color: white; border: none; border-radius: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 12px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-single { background: #eab308; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.4); }
+        .btn-single:hover { background: #ca8a04; transform: translateY(-2px); }
         .btn-create { background: #4a7c59; box-shadow: 0 4px 15px rgba(74, 124, 89, 0.4); }
         .btn-create:hover { background: #3d6649; transform: translateY(-2px); }
         .btn-join { background: #0284c7; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4); }
         .btn-join:hover { background: #0369a1; transform: translateY(-2px); }
         
         #lobby-ui { display: none; width: 100%; text-align: center; }
+        .player-tag { display: inline-block; background: #f1f5f9; border: 2px solid #cbd5e1; border-radius: 20px; padding: 5px 15px; margin: 5px; font-weight: bold; color: #334155; }
         
         #game-over-modal { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 95; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
         .game-over-content { background: #ffffff; padding: 50px; border-radius: 24px; text-align: center; color: #334155; max-width: 400px; border: 4px solid #ef4444; box-shadow: 0 15px 50px rgba(239, 68, 68, 0.3); }
@@ -34,7 +37,7 @@
         /* 遊戲內 UI */
         #ui-layer { position: absolute; top: 15px; left: 15px; pointer-events: none; z-index: 10; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
         
-        #battle-panel { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.85); border: 3px solid #98c9c6; border-radius: 16px; padding: 15px; width: 220px; z-index: 9; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); }
+        #battle-panel { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.85); border: 3px solid #98c9c6; border-radius: 16px; padding: 15px; width: 220px; z-index: 9; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); display: none; }
         .vs-row { display: flex; justify-content: space-between; padding: 8px; margin: 4px 0; border-radius: 8px; font-weight: bold; }
         .vs-me { background: #fef9c3; border: 2px solid #e3c28c; color: #854d0e; }
         .vs-enemy { background: #f1f5f9; border: 2px solid #cbd5e1; color: #334155; }
@@ -59,16 +62,19 @@
 </head>
 <body>
 
-    <!-- 登入與大廳 (新增對戰房間功能) -->
+    <!-- 登入與大廳 -->
     <div id="intro-screen">
         <div class="intro-card" id="login-ui">
             <h1 class="text-4xl font-extrabold mb-2 text-center" style="color: #4a7c59;">A-Teamverse</h1>
-            <p class="text-sm mb-6 font-semibold text-center text-gray-500">Supabase Realtime Battle</p>
+            <p class="text-sm mb-6 font-semibold text-center text-gray-500">Learn English & Explore</p>
             <input type="text" id="name-input" placeholder="Your Name (e.g. Leo)" maxlength="10" autocomplete="off">
             <div class="avatar-grid" id="avatar-grid"></div>
             
             <div id="action-buttons" style="display: none; width: 100%;">
-                <button class="action-btn btn-create" onclick="window.createRoom()">🏠 Create Room</button>
+                <!-- 恢復單機遊玩按鈕 -->
+                <button class="action-btn btn-single" onclick="window.startSinglePlayer()">👤 Enter City (Single)</button>
+                <hr class="my-4 border-gray-300">
+                <button class="action-btn btn-create" onclick="window.createRoom()">🏠 Create Multiplayer Room</button>
                 <div class="flex gap-2">
                     <input type="text" id="room-input" placeholder="Room Code" maxlength="4" style="margin-bottom:0; text-transform: uppercase;">
                     <button class="action-btn btn-join" style="margin-bottom:0; width: auto; padding: 0 20px;" onclick="window.joinRoom()">Join</button>
@@ -78,13 +84,12 @@
 
         <div class="intro-card" id="lobby-ui">
             <h2 class="text-3xl font-extrabold mb-2" style="color: #4a7c59;">Room: <span id="display-room-id" class="text-blue-600"></span></h2>
-            <p class="text-lg font-bold mb-6 text-gray-600">Waiting for opponent...</p>
-            <div class="flex justify-around w-full mb-4 text-4xl">
-                <div id="p1-slot">👤</div>
-                <div class="text-xl font-bold text-gray-400 mt-2">VS</div>
-                <div id="p2-slot" class="opacity-50">⏳</div>
+            <p class="text-md font-bold mb-4 text-gray-600">Players in lobby:</p>
+            <div id="lobby-players" class="flex flex-wrap justify-center mb-6 min-h-[60px]">
+                <!-- 加入的玩家會顯示在這裡 -->
             </div>
-            <p class="text-sm text-red-500 animate-pulse">Game starts automatically when 2 players connect!</p>
+            <button class="action-btn btn-create w-full" id="btn-start-battle" onclick="window.triggerGameStart()">🚀 Start Battle Now</button>
+            <p class="text-xs text-gray-400 mt-3">Anyone can start the game when ready.</p>
         </div>
     </div>
 
@@ -94,7 +99,7 @@
             <div class="text-6xl mb-4">💀</div>
             <h2 class="text-4xl font-extrabold mb-2 text-red-500">GAME OVER</h2>
             <p class="text-xl mb-6 font-bold text-gray-600">Final Score: $<span id="final-score" class="text-yellow-500">0</span></p>
-            <button onclick="location.reload()" class="px-6 py-3 rounded-full font-bold text-lg w-full text-white bg-blue-500 hover:bg-blue-600 shadow-lg">Back to Lobby</button>
+            <button onclick="location.reload()" class="px-6 py-3 rounded-full font-bold text-lg w-full text-white bg-blue-500 hover:bg-blue-600 shadow-lg">Back to Home</button>
         </div>
     </div>
 
@@ -105,16 +110,11 @@
             <h3 class="text-2xl mb-2" id="lives-display">❤️❤️❤️❤️❤️</h3>
         </div>
 
-        <!-- 雙人連線即時戰況版 -->
+        <!-- 雙人/多人連線即時戰況版 -->
         <div id="battle-panel">
             <h3 class="text-center font-extrabold mb-2 border-b-2 pb-2" style="color: #3f6212; border-color: rgba(0,0,0,0.1);">⚔️ BATTLE HUD</h3>
-            <div class="vs-row vs-me">
-                <span class="truncate pr-2" id="my-name-hud">Me</span>
-                <span>$<span id="my-score-hud">0</span></span>
-            </div>
-            <div class="vs-row vs-enemy">
-                <span class="truncate pr-2" id="enemy-name-hud">Enemy</span>
-                <span>$<span id="enemy-score-hud">0</span></span>
+            <div id="hud-players-list">
+                <!-- 玩家分數動態產生 -->
             </div>
         </div>
 
@@ -153,9 +153,6 @@
     <script type="module">
         import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm'
 
-        // ==========================================
-        // 🔴 已經為您寫死的 Supabase 專案資訊[cite: 4]
-        // ==========================================
         const supabaseUrl = 'https://zjjtgwmfnupciqzemvbm.supabase.co';
         const supabaseKey = 'sb_publishable_KMJ7xqLRQmhc15Qzh0F3Nw_Qd7j_OZy';
         const supabase = createClient(supabaseUrl, supabaseKey);
@@ -165,10 +162,13 @@
         window.money = 0;
         window.lives = 5;
         window.currentQuestion = null;
+        
         let inDialogue = false;
         let activeNPC = null;
         let roomChannel = null;
         let currentRoomId = "";
+        let isMultiplayer = false;
+        let otherPlayers = {}; // 用於儲存其他玩家的即時座標與分數 { 'name': {x, y, emoji, score} }
 
         const avatars = ['👦', '👧', '🤖', '🦸', '🐼', '🧙', '🦇', '🐭', '🦊', '🐸'];
         const avatarGrid = document.getElementById('avatar-grid');
@@ -199,7 +199,16 @@
             }
         }
 
-        // --- Supabase Realtime 房間邏輯 ---
+        // ================= 單機模式 =================
+        window.startSinglePlayer = function() {
+            isMultiplayer = false;
+            document.getElementById('intro-screen').style.display = 'none';
+            document.getElementById('game-wrapper').style.display = 'flex';
+            document.getElementById('battle-panel').style.display = 'none'; // 隱藏連線 HUD
+            startGame();
+        }
+
+        // ================= 多人連線模式 =================
         window.createRoom = function() {
             const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
             joinSupabaseRoom(roomId);
@@ -213,11 +222,12 @@
 
         function joinSupabaseRoom(roomId) {
             currentRoomId = roomId;
+            isMultiplayer = true;
             document.getElementById('login-ui').style.display = 'none';
             document.getElementById('lobby-ui').style.display = 'block';
             document.getElementById('display-room-id').innerText = roomId;
-            document.getElementById('p1-slot').innerText = window.playerEmoji;
 
+            // 建立房間頻道
             roomChannel = supabase.channel(`room_${roomId}`, {
                 config: {
                     presence: { key: window.playerName },
@@ -230,42 +240,116 @@
                     const state = roomChannel.presenceState();
                     const players = Object.keys(state);
                     
-                    if (players.length >= 2) {
-                        const enemyKey = players.find(p => p !== window.playerName);
-                        document.getElementById('p2-slot').innerText = '🔥';
-                        document.getElementById('p2-slot').classList.remove('opacity-50');
-                        document.getElementById('enemy-name-hud').innerText = enemyKey || "Enemy";
-                        
-                        setTimeout(() => {
-                            document.getElementById('intro-screen').style.display = 'none';
-                            document.getElementById('game-wrapper').style.display = 'flex';
-                            document.getElementById('my-name-hud').innerText = window.playerName;
-                            startGame();
-                        }, 1000);
-                    }
+                    // 更新大廳玩家列表
+                    const lobbyDiv = document.getElementById('lobby-players');
+                    lobbyDiv.innerHTML = '';
+                    players.forEach(pName => {
+                        const tag = document.createElement('div');
+                        tag.className = 'player-tag';
+                        // 嘗試抓取 state 中挾帶的 emoji (如果有的話)
+                        const pEmoji = state[pName][0]?.emoji || '👤'; 
+                        tag.innerText = `${pEmoji} ${pName}`;
+                        lobbyDiv.appendChild(tag);
+                    });
                 })
-                .on('broadcast', { event: 'score_update' }, (payload) => {
-                    document.getElementById('enemy-score-hud').innerText = payload.score;
+                .on('broadcast', { event: 'start_game' }, () => {
+                    // 接收到任何人的開始指令，進入遊戲
+                    enterMultiplayerGame();
+                })
+                .on('broadcast', { event: 'player_sync' }, (payload) => {
+                    // 接收對手的即時座標與分數更新
+                    otherPlayers[payload.name] = {
+                        x: payload.x,
+                        y: payload.y,
+                        emoji: payload.emoji,
+                        score: payload.score
+                    };
+                    updateBattleHUD();
                 })
                 .subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await roomChannel.track({ ready: true });
+                        // 註冊時附帶自己的 emoji
+                        await roomChannel.track({ ready: true, emoji: window.playerEmoji });
                     }
                 });
         }
 
-        window.broadcastScore = function() {
+        // 大廳內的 Start Battle 按鈕
+        window.triggerGameStart = function() {
             if(roomChannel) {
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'score_update',
-                    payload: { name: window.playerName, score: window.money }
-                });
+                // 廣播給所有人一起開始
+                roomChannel.send({ type: 'broadcast', event: 'start_game' });
+                enterMultiplayerGame(); // 自己也進入
             }
         }
 
+        function enterMultiplayerGame() {
+            document.getElementById('intro-screen').style.display = 'none';
+            document.getElementById('game-wrapper').style.display = 'flex';
+            document.getElementById('battle-panel').style.display = 'block';
+            updateBattleHUD(); // 初始化 HUD
+            startGame();
+            
+            // 啟動廣播循環 (每 100 毫秒廣播一次自己的狀態給其他人)
+            setInterval(broadcastMyState, 100);
+        }
+
+        // 廣播自己的動態 (位置與分數)
+        let lastBroadcastX = -1, lastBroadcastY = -1, lastBroadcastScore = -1;
+        function broadcastMyState() {
+            if (!isMultiplayer || !roomChannel) return;
+            
+            // 只有在移動或分數改變時才廣播，節省頻寬
+            if (Math.abs(player.x - lastBroadcastX) > 2 || 
+                Math.abs(player.y - lastBroadcastY) > 2 || 
+                window.money !== lastBroadcastScore) {
+                
+                roomChannel.send({
+                    type: 'broadcast',
+                    event: 'player_sync',
+                    payload: { 
+                        name: window.playerName, 
+                        emoji: window.playerEmoji,
+                        x: player.x, 
+                        y: player.y, 
+                        score: window.money 
+                    }
+                });
+                
+                lastBroadcastX = player.x;
+                lastBroadcastY = player.y;
+                lastBroadcastScore = window.money;
+            }
+        }
+
+        // 更新多人對戰 HUD 面板
+        function updateBattleHUD() {
+            const hudContainer = document.getElementById('hud-players-list');
+            hudContainer.innerHTML = '';
+            
+            // 整理所有玩家名單 (自己 + 其他玩家)
+            let allFighters = [
+                { name: window.playerName + " (Me)", score: window.money, isMe: true }
+            ];
+            
+            for (const [pName, pData] of Object.entries(otherPlayers)) {
+                allFighters.push({ name: pName, score: pData.score, isMe: false });
+            }
+            
+            // 依照分數排序
+            allFighters.sort((a, b) => b.score - a.score);
+            
+            allFighters.forEach(f => {
+                let row = document.createElement('div');
+                row.className = `vs-row ${f.isMe ? 'vs-me' : 'vs-enemy'}`;
+                row.innerHTML = `<span class="truncate pr-2">${f.name}</span><span>$${f.score}</span>`;
+                hudContainer.appendChild(row);
+            });
+        }
+
+
         // ==========================================
-        // 遊戲核心邏輯 (完整地圖與 36 題庫)
+        // 遊戲核心邏輯 (地圖繪製與 36 題庫)
         // ==========================================
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -490,7 +574,25 @@
                 ctx.fillStyle = 'white'; ctx.fillText(n.role, n.x, n.y - 34);
             });
 
+            // ==== 繪製其他連線玩家的即時動態 ====
+            if (isMultiplayer) {
+                for (const [pName, pData] of Object.entries(otherPlayers)) {
+                    ctx.font = '45px Arial'; ctx.fillText(pData.emoji, pData.x, pData.y);
+                    // 繪製其他玩家的名牌
+                    ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    let ptw = ctx.measureText(pName).width;
+                    ctx.fillRect(pData.x - ptw/2 - 8, pData.y - 45, ptw + 16, 22);
+                    ctx.fillStyle = '#333'; ctx.fillText(pName, pData.x, pData.y - 34);
+                }
+            }
+
+            // 繪製自己
             ctx.font = '45px Arial'; ctx.fillText(window.playerEmoji, player.x, player.y);
+            ctx.font = 'bold 14px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            let myTw = ctx.measureText(window.playerName).width;
+            ctx.fillRect(player.x - myTw/2 - 8, player.y - 45, myTw + 16, 22);
+            ctx.fillStyle = '#333'; ctx.fillText(window.playerName, player.x, player.y - 34);
+
             ctx.restore();
         }
 
@@ -577,8 +679,7 @@
                 card.style.backgroundColor = '#dcfce7'; card.style.borderColor = '#22c55e'; 
                 window.money += 20;
                 document.getElementById('money').innerText = window.money;
-                document.getElementById('my-score-hud').innerText = window.money;
-                window.broadcastScore(); 
+                updateBattleHUD(); // 自己分數增加也更新一下畫面
             } else {
                 card.style.backgroundColor = '#fee2e2'; card.style.borderColor = '#ef4444'; 
                 window.lives -= 1;
