@@ -1,898 +1,1459 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A-Teamverse: Realtime Multiplayer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { 
-            margin: 0; padding: 0; width: 100%; height: 100%; 
-            overflow: hidden; background-color: #0f172a; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            user-select: none; touch-action: none;
-        }
-        
-        #game-wrapper { position: relative; width: 100vw; height: 100vh; display: none; overflow: hidden; background-color: #a8c3b5; }
-        canvas { background-color: #a8c3b5; display: block; width: 100%; height: 100%; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智慧庫房 - 電子零件管理系統 (Teachable Machine AI)</title>
+  
+  <!-- TensorFlow.js 與 Teachable Machine Image 函式庫 -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  
+  <!-- FontAwesome 圖示 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-        /* 開場載入歡迎動畫與進度條 */
-        #splash-screen {
-            position: fixed; inset: 0; z-index: 200;
-            background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-        .pulse-logo {
-            animation: bounceLogo 2s infinite ease-in-out;
-        }
-        @keyframes bounceLogo {
-            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 10px 20px rgba(16,185,129,0.3)); }
-            50% { transform: translateY(-8px) scale(1.03); filter: drop-shadow(0 18px 30px rgba(16,185,129,0.5)); }
-        }
-        .progress-track {
-            width: 240px; height: 8px; background: rgba(255,255,255,0.15);
-            border-radius: 999px; overflow: hidden; position: relative;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
-        }
-        .progress-bar-fill {
-            width: 0%; height: 100%;
-            background: linear-gradient(90deg, #34d399, #10b981);
-            border-radius: 999px;
-            box-shadow: 0 0 12px #34d399;
-            transition: width 0.1s linear;
-        }
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
 
-        /* 遊戲大廳面板 */
-        #intro-screen { 
-            position: fixed; inset: 0; z-index: 100; 
-            background: radial-gradient(circle at 50% 30%, #a8c3b5 0%, #2f4f4f 100%); 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            padding: 16px;
-        }
-        .intro-card { 
-            background: rgba(255, 255, 255, 0.94); 
-            backdrop-filter: blur(20px);
-            padding: 28px 24px; 
-            border-radius: 28px; 
-            border: 2px solid rgba(255,255,255,0.9);
-            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35); 
-            display: flex; flex-direction: column; align-items: center; 
-            max-width: 400px; width: 100%; 
-            animation: cardPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        @keyframes cardPop {
-            0% { opacity: 0; transform: scale(0.92); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-        
-        #name-input, #room-input { 
-            padding: 12px 16px; border-radius: 14px; 
-            border: 2px solid #cbd5e1; background: #f8fafc; 
-            color: #1e293b; font-size: 16px; outline: none; 
-            text-align: center; width: 100%; font-weight: 700;
-            transition: all 0.2s ease;
-        }
-        #name-input:focus, #room-input:focus { 
-            border-color: #10b981; background: #ffffff; 
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2); 
-        }
-        
-        .avatar-grid { 
-            display: grid; grid-template-columns: repeat(5, 1fr); 
-            gap: 8px; margin: 14px 0 18px; width: 100%; 
-        }
-        .avatar-btn { 
-            font-size: 28px; background: #f8fafc; 
-            border: 2px solid #e2e8f0; border-radius: 16px; 
-            height: 52px; cursor: pointer; transition: all 0.15s ease; 
-            display: flex; justify-content: center; align-items: center; 
-        }
-        .avatar-btn:active { transform: scale(0.92); }
-        .avatar-btn.selected { 
-            border-color: #10b981; background: #ffffff; 
-            transform: scale(1.08); 
-            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3); 
-        }
-        
-        .action-btn { 
-            width: 100%; padding: 13px; font-size: 15px; font-weight: 800; 
-            color: white; border: none; border-radius: 14px; cursor: pointer; 
-            transition: transform 0.15s, opacity 0.15s; display: flex; 
-            justify-content: center; align-items: center; gap: 8px; 
-        }
-        .action-btn:active { transform: scale(0.96); opacity: 0.92; }
-        .btn-single { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 6px 16px rgba(217, 119, 6, 0.3); }
-        .btn-create { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 6px 16px rgba(5, 150, 105, 0.3); }
-        .btn-join { background: linear-gradient(135deg, #0ea5e9, #0284c7); box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3); }
-        
-        #lobby-ui { display: none; width: 100%; text-align: center; }
-        .player-tag { 
-            display: inline-flex; align-items: center; gap: 6px; 
-            background: #f1f5f9; border: 1.5px solid #cbd5e1; 
-            border-radius: 999px; padding: 6px 14px; margin: 4px; 
-            font-weight: 700; color: #334155; font-size: 14px;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); min-height: 100vh; padding: 20px; }
 
-        /* 遊戲內 HUD */
-        #ui-layer { position: absolute; top: 16px; left: 16px; pointer-events: none; z-index: 10; }
-        #battle-panel { 
-            position: absolute; top: 16px; right: 16px; 
-            background: rgba(255, 255, 255, 0.92); border: 2px solid #98c9c6; 
-            border-radius: 14px; padding: 12px; width: 180px; z-index: 9; 
-            backdrop-filter: blur(8px); display: none; 
-            box-shadow: 0 6px 18px rgba(0,0,0,0.1);
-        }
-        .vs-row { display: flex; justify-content: space-between; padding: 5px 8px; margin: 3px 0; border-radius: 6px; font-weight: 700; font-size: 13px; }
-        .vs-me { background: #fef08a; color: #854d0e; }
-        .vs-enemy { background: #f1f5f9; color: #334155; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    .header-title { display: flex; align-items: center; gap: 15px; }
+    .header-title i { font-size: 2rem; color: var(--accent); }
+    .header-title h1 { font-size: 1.5rem; }
+    .header-title span { font-size: 0.9rem; background: #0369a1; padding: 3px 8px; border-radius: 4px; }
+    .header-title p { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
 
-        /* 手機 360 度虛擬搖桿 (Joystick) */
-        #joystick-zone {
-            position: fixed;
-            bottom: 30px;
-            left: 30px;
-            width: 140px;
-            height: 140px;
-            z-index: 80;
-            display: none; /* 由 JS 依裝置環境自動啟用 */
-            align-items: center;
-            justify-content: center;
-            touch-action: none;
-            user-select: none;
-        }
-        #joystick-base {
-            width: 130px;
-            height: 130px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.1) 100%);
-            border: 2px solid rgba(255, 255, 255, 0.7);
-            border-radius: 50%;
-            position: relative;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        #joystick-knob {
-            width: 58px;
-            height: 58px;
-            background: linear-gradient(135deg, #ffffff, #d1fae5);
-            border: 2.5px solid #10b981;
-            border-radius: 50%;
-            position: absolute;
-            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
-            pointer-events: none;
-            transform: translate(0px, 0px);
-            transition: transform 0.05s ease-out;
-        }
-        #joystick-zone.active #joystick-knob {
-            background: linear-gradient(135deg, #a7f3d0, #34d399);
-            box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
-        }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-        /* 題目對話框 */
-        #dialogue-box { 
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            width: 92%; max-width: 560px; background: white; border-radius: 24px; 
-            padding: 22px; display: none; box-shadow: 0 25px 60px -15px rgba(0,0,0,0.35); 
-            z-index: 95; max-height: 85vh; overflow-y: auto; 
-        }
-        .vocab-pill { display: inline-flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px; padding: 4px 10px; margin-right: 6px; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: #334155; }
-        .tool-btn-small { margin-left: 6px; background: none; border: none; cursor: pointer; font-size: 14px; }
-        .option-btn { width: 100%; padding: 14px; margin-bottom: 10px; border: 2px solid #e2e8f0; background: #ffffff; border-radius: 16px; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: flex-start; color: #334155; }
+    .btn {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: #334155; color: #fff; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-warning { background: var(--warning); color: #000; }
+    .btn-warning:hover { background: #d97706; color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-voice { background: #6366f1; color: #fff; }
+    .btn-voice:hover { background: #4f46e5; }
+    .btn-stock { background: #059669; color: #fff; }
+    .btn-stock:hover { background: #047857; }
 
-        #game-over-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
-        .game-over-content { background: #ffffff; padding: 40px 32px; border-radius: 28px; text-align: center; max-width: 340px; width: 90%; }
-    </style>
+    /* 小型圖示按鈕 (用於區域標題操作) */
+    .btn-icon {
+      background: #0f172a;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      width: 28px;
+      height: 28px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    .btn-icon:hover { color: #fff; border-color: var(--accent); background: #334155; }
+    .btn-icon.add:hover { border-color: var(--success); color: var(--success); }
+    .btn-icon.del:hover { border-color: var(--danger); color: var(--danger); }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 992px) {
+      .layout-grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .webcam-box {
+      position: relative;
+      width: 100%;
+      height: 340px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .webcam-box video, .webcam-box canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+    .webcam-placeholder {
+      position: absolute;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 20px;
+    }
+    .webcam-placeholder i { font-size: 3rem; margin-bottom: 10px; display: block; }
+    
+    .crosshair {
+      position: absolute;
+      width: 500px;
+      height: 300px;
+      border: 2px dashed rgba(56, 189, 248, 0.6);
+      pointer-events: none;
+      border-radius: 12px;
+    }
+
+    /* 單一最高機率長條圖區塊 */
+    .prediction-bars { margin-top: 15px; }
+    .pred-row { margin-bottom: 8px; }
+    .pred-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 6px; }
+    .pred-track { width: 100%; height: 10px; background: #334155; border-radius: 5px; overflow: hidden; }
+    .pred-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.25s ease; }
+
+    .nav-box {
+      background: #0f172a;
+      border: 2px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 15px;
+    }
+    .part-name { font-size: 1.8rem; font-weight: bold; margin: 10px 0; color: #fff; }
+    .nav-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .stat-card {
+      background: #1e293b;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .stat-card .label { font-size: 0.75rem; color: var(--text-muted); }
+    .stat-card .val { font-size: 1.2rem; font-weight: bold; margin-top: 4px; color: var(--accent); word-break: break-word; }
+
+    /* 按鈕容器：自動依據入庫狀態垂直排列 */
+    .action-button-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .matrix-section { margin-top: 24px; }
+    .zone-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 15px;
+    }
+    .zone-col {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .zone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+      gap: 8px;
+    }
+    .zone-title {
+      font-size: 1rem;
+      font-weight: bold;
+      color: var(--text-main);
+      word-break: break-word;
+    }
+    .zone-actions {
+      display: flex;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .drawers-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .empty-zone-hint {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 18px 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border: 1px dashed var(--border-color);
+      border-radius: 6px;
+    }
+    .drawer-node {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      position: relative;
+    }
+    .drawer-node:hover {
+      border-color: var(--accent);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+    .drawer-node .d-code { font-weight: bold; color: #e2e8f0; word-break: break-word; }
+    .drawer-node .d-item { font-size: 0.75rem; color: var(--text-muted); word-break: break-word; }
+    .drawer-node .d-qty {
+      font-size: 0.7rem;
+      background: #334155;
+      color: #38bdf8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-top: 2px;
+      display: inline-block;
+    }
+
+    .drawer-node.active-guide {
+      background: var(--accent) !important;
+      color: #000 !important;
+      border-color: #fff !important;
+      box-shadow: 0 0 16px var(--accent);
+      animation: pulse 1s infinite alternate;
+    }
+    .drawer-node.active-guide .d-code,
+    .drawer-node.active-guide .d-item,
+    .drawer-node.active-guide .d-qty {
+      color: #000 !important;
+      font-weight: bold;
+    }
+    .drawer-node.active-guide .d-qty {
+      background: rgba(255,255,255,0.4) !important;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+
+    .log-list {
+      max-height: 160px;
+      overflow-y: auto;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    .log-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #334155;
+      color: var(--text-muted);
+      gap: 10px;
+    }
+    .log-item span:first-child { color: var(--text-main); font-weight: 500; }
+
+    /* 通用彈跳視窗樣式 */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 460px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .modal-input, .modal-select {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f172a;
+      color: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 1rem;
+      margin: 8px 0 14px 0;
+      outline: none;
+    }
+    .modal-input:focus, .modal-select:focus {
+      border-color: var(--accent);
+    }
+
+    .quick-qty-controls {
+      display: flex;
+      gap: 10px;
+      margin: 8px 0;
+      justify-content: center;
+    }
+
+    .color-setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #0f172a;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .color-setting-item input[type="color"] {
+      border: none;
+      width: 40px;
+      height: 32px;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
-    <!-- 1. 開場載入與歡迎動畫畫面 -->
-    <div id="splash-screen">
-        <div class="pulse-logo text-7xl mb-4">🏝️</div>
-        <h1 class="text-3xl font-black text-white tracking-widest uppercase mb-1">A-Teamverse</h1>
-        <p class="text-xs font-semibold text-emerald-300 tracking-wider mb-8">英語大冒險 • 即時連線</p>
-        
-        <div class="progress-track mb-3">
-            <div class="progress-bar-fill" id="loading-bar"></div>
-        </div>
-        <p class="text-xs font-bold text-gray-400" id="loading-text">載入遊戲世界中... 0%</p>
+  <header>
+    <div class="header-title">
+      <i class="fa-solid fa-microchip"></i>
+      <div>
+        <h1>智慧庫房 <span>電子零件管理系統</span></h1>
+        <p>東海高中 · 明星三缺一 ｜ AI 視覺之零件辨識與智能歸位系統</p>
+      </div>
     </div>
+    <div class="header-actions">
+      <button class="btn" id="startBtn" onclick="toggleCam()"><i class="fa-solid fa-camera"></i> 開啟鏡頭檢測</button>
+      <button class="btn btn-secondary" id="switchBtn" onclick="switchCamera()"><i class="fa-solid fa-arrows-rotate"></i> 切換鏡頭</button>
+      <button class="btn btn-secondary" onclick="openColorSettings()"><i class="fa-solid fa-palette"></i> 標籤顏色</button>
+      <button class="btn btn-secondary" onclick="openModelSettings()"><i class="fa-solid fa-gear"></i> 模型設定</button>
+    </div>
+  </header>
 
-    <!-- 2. 登入與多人大廳 -->
-    <div id="intro-screen">
-        <div class="intro-card" id="login-ui">
-            <div class="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-2xl mb-2">🎮</div>
-            <h1 class="text-2xl font-black text-slate-800 tracking-tight">準備出發！</h1>
-            <p class="text-xs mb-4 font-semibold text-gray-400">選擇角色與名稱進入小鎮</p>
+  <main>
+    <div class="layout-grid">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-size:0.9rem;">
+          <span id="camStatus">狀態：未開啟</span>
+          <span id="fpsCounter" style="color:var(--accent);">進度: 等待開啟</span>
+        </div>
+        <div class="webcam-box" id="webcam-box">
+          <div class="webcam-placeholder" id="placeholder">
+            <i class="fa-solid fa-camera-rotate"></i>
+            <p>點擊上方「開啟鏡頭檢測」載入雲端模型並進行即時辨識</p>
+          </div>
+          <div class="crosshair"></div>
+        </div>
+
+        <!-- 僅顯示最高可能性類別的長條圖 -->
+        <div class="prediction-bars" id="predBars">
+          <div class="pred-row">
+            <div class="pred-info">
+              <span><b>最高可能性類別：</b><span id="topClassName">--</span></span>
+              <span id="topClassVal" style="font-weight: bold; color: var(--accent);">--%</span>
+            </div>
+            <div class="pred-track">
+              <div class="pred-fill" id="topClassBar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 1.1rem; display: flex; justify-content: space-between;">
+          <span>AI 防呆歸位導航</span>
+          <span id="guideBadge" style="font-size:0.8rem; background:#334155; padding:2px 8px; border-radius:4px;">STANDBY</span>
+        </h2>
+
+        <div class="nav-box">
+          <div style="color:var(--text-muted); font-size: 0.85rem;">辨識零件類別</div>
+          <div class="part-name" id="detectedName">等待放置零件...</div>
+          
+          <div class="nav-details">
+            <div class="stat-card">
+              <div class="label">目標抽屜</div>
+              <div class="val" id="targetDrawer">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">當前庫存</div>
+              <div class="val" id="targetQty">--</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">平均信心度</div>
+              <div class="val" id="targetConf">--%</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px;">
+            <p id="partSpec" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
+              規格：請將零件置於取景框中央以獲得最佳推論精確度
+            </p>
             
-            <input type="text" id="name-input" placeholder="輸入玩家暱稱 (例: Leo)" maxlength="10" autocomplete="off">
-            <div class="avatar-grid" id="avatar-grid"></div>
-            
-            <div id="action-buttons" style="display: none; width: 100%;" class="space-y-3">
-                <button class="action-btn btn-single" onclick="window.startSinglePlayer()">👤 單人自由探索</button>
-                <div class="relative flex py-1 items-center">
-                    <div class="flex-grow border-t border-gray-200"></div>
-                    <span class="flex-shrink mx-3 text-gray-400 text-xs font-bold">多人競賽</span>
-                    <div class="flex-grow border-t border-gray-200"></div>
-                </div>
-                <button class="action-btn btn-create" onclick="window.createRoom()">🏠 創建對戰房間</button>
-                <div class="flex gap-2">
-                    <input type="text" id="room-input" placeholder="4位房間碼" maxlength="4" style="text-transform: uppercase;">
-                    <button class="action-btn btn-join" style="width: auto; padding: 0 20px;" onclick="window.joinRoom()">加入</button>
-                </div>
+            <!-- 按鈕容器：自動依據入庫狀態排列 -->
+            <div class="action-button-group" id="actionBtnGroup">
+              <!-- 加入倉庫按鈕 (未入庫時出現) -->
+              <button class="btn btn-warning" id="quickAssignBtn" onclick="openAssignModal()" style="display:none; font-size:0.9rem; padding:8px 16px;">
+                <i class="fa-solid fa-plus-circle"></i> 倉庫無此零件：加入倉庫格位
+              </button>
+
+              <!-- 手動修改庫存按鈕 (已入庫時出現) -->
+              <button class="btn btn-stock" id="stockAdjustBtn" onclick="openStockModalForCurrent()" style="display:none; font-size:0.85rem; padding:7px 16px;">
+                <i class="fa-solid fa-boxes-packing"></i> 調整此零件庫存
+              </button>
+
+              <!-- 語音播報按鈕 -->
+              <button class="btn btn-voice" id="voiceBtn" onclick="speakCurrentResult()" style="display:none; font-size:0.85rem; padding:7px 16px;">
+                <i class="fa-solid fa-volume-high"></i> 語音播報導航
+              </button>
             </div>
+          </div>
         </div>
 
-        <div class="intro-card" id="lobby-ui">
-            <h2 class="text-2xl font-black mb-1" style="color: #2e593d;">房號：<span id="display-room-id" class="text-blue-600 font-mono"></span></h2>
-            <p class="text-xs font-bold mb-3 text-gray-500">等待其他冒險者加入...</p>
-            <div id="lobby-players" class="flex flex-wrap justify-center mb-6 min-h-[50px]"></div>
-            <button class="action-btn btn-create w-full" id="btn-start-battle" onclick="window.triggerGameStart()">🚀 開始遊戲</button>
+        <div style="margin-top: 20px;">
+          <span style="font-size:0.9rem; font-weight:bold;">最近歸位與異動流水帳</span>
+          <div class="log-list" id="logList">
+            <div class="log-item"><span>系統</span><span>待命紀錄中...</span></div>
+          </div>
         </div>
+      </div>
     </div>
 
-    <!-- 3. 遊戲結束結算 -->
-    <div id="game-over-modal">
-        <div class="game-over-content">
-            <div class="text-5xl mb-3">💀</div>
-            <h2 class="text-3xl font-extrabold mb-1 text-red-500">GAME OVER</h2>
-            <p class="text-lg mb-5 font-bold text-gray-600">最終得分：$<span id="final-score" class="text-amber-500">0</span></p>
-            <button onclick="location.reload()" class="px-5 py-3 rounded-xl font-bold text-base w-full text-white bg-blue-500 active:scale-95 transition">返回主頁面</button>
+    <!-- 動態倉庫抽屜座標矩陣 -->
+    <div class="card matrix-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3><i class="fa-solid fa-boxes-stacked"></i> 工場庫房零件抽屜座標矩陣</h3>
+          <p style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">可自由增減與改名「大區」與「小格位」；點擊抽屜可修改格位名稱、零件或庫存數量。</p>
         </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn" onclick="addZone()" style="font-size:0.85rem; padding:6px 12px;">
+            <i class="fa-solid fa-folder-plus"></i> 新增區域
+          </button>
+          <button class="btn btn-secondary" onclick="resetDrawerMapping()" style="font-size:0.85rem; padding:6px 12px;">
+            <i class="fa-solid fa-rotate-left"></i> 重設所有抽屜
+          </button>
+        </div>
+      </div>
+
+      <div class="zone-container" id="zoneContainer"></div>
     </div>
+  </main>
 
-    <!-- 4. 遊戲主畫面 -->
-    <div id="game-wrapper">
-        <div id="ui-layer">
-            <h2 class="text-2xl font-black mb-0.5" style="color: #0f766e;">💰 $<span id="money" style="color: #b45309;">0</span></h2>
-            <h3 class="text-xl" id="lives-display">❤️❤️❤️❤️❤️</h3>
+  <!-- 彈窗 1：加入倉庫抽屜 (Modal) -->
+  <div class="modal-overlay" id="assignModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-box-archive" style="color:var(--accent);"></i>
+        選擇欲入庫的抽屜格位
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:8px;">
+        欲入庫零件：<b id="modalPartName" style="color:var(--warning); font-size:1.1rem;"></b>
+      </p>
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">請選擇目標抽屜清單：</label>
+      <select class="modal-select" id="drawerSelect"></select>
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block;">初始庫存數量 (pcs)：</label>
+      <input type="number" class="modal-input" id="initialStockInput" value="10" min="0">
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-secondary" onclick="closeAssignModal()">取消</button>
+        <button class="btn" onclick="confirmDrawerAssign()"><i class="fa-solid fa-check"></i> 確定入庫</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 彈窗 2：手動修改抽屜名稱、零件與庫存 (Modal) -->
+  <div class="modal-overlay" id="drawerEditModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-pen-to-square" style="color:var(--accent);"></i>
+        編輯抽屜格位：<span id="editModalZoneTitle" style="color:var(--text-muted); font-size:0.95rem;"></span>
+      </h3>
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block; margin-top:14px;">小區 / 抽屜名稱：</label>
+      <input type="text" class="modal-input" id="editDrawerCodeInput" placeholder="例如：A-01、紅光格">
+      
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block;">存放零件名稱 (留白代表清空)：</label>
+      <input type="text" class="modal-input" id="editItemNameInput" placeholder="例如：LED R、電阻">
+
+      <label style="font-size:0.85rem; color:var(--text-muted); display:block;">庫存數量 (pcs)：</label>
+      <div class="quick-qty-controls">
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-10)">-10</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(-1)">-1</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(1)">+1</button>
+        <button class="btn btn-secondary" onclick="quickAdjustModalQty(10)">+10</button>
+      </div>
+      <input type="number" class="modal-input" id="editItemQtyInput" value="0" min="0">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:8px;">
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-secondary" onclick="clearCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="僅清空零件與數量">
+            <i class="fa-solid fa-eraser"></i> 清空
+          </button>
+          <button class="btn btn-danger" onclick="deleteCurrentDrawer()" style="font-size:0.8rem; padding:7px 10px;" title="直接移除這個小格位">
+            <i class="fa-solid fa-trash"></i> 刪除此格
+          </button>
         </div>
-
-        <div id="battle-panel">
-            <h3 class="text-center font-extrabold text-xs mb-1.5 border-b pb-1 text-emerald-800">⚔️ 即時戰況</h3>
-            <div id="hud-players-list"></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary" onclick="closeDrawerEditModal()" style="padding:7px 12px;">取消</button>
+          <button class="btn" onclick="saveDrawerEdit()" style="padding:7px 14px;"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <canvas id="gameCanvas"></canvas>
+  <!-- 彈窗 3：自訂標籤顏色視窗 (Modal) -->
+  <div class="modal-overlay" id="colorModal">
+    <div class="modal-content">
+      <h3 style="display:flex; align-items:center; gap:8px; font-size:1.15rem; color:#fff;">
+        <i class="fa-solid fa-palette" style="color:var(--accent);"></i>
+        自訂類別顏色 (LED / 零件)
+      </h3>
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-top:6px; margin-bottom:15px;">
+        點選右側色塊可自由指定各類別的長條圖與抽屜顏色：
+      </p>
 
-        <!-- 360 度虛擬搖桿 -->
-        <div id="joystick-zone">
-            <div id="joystick-base">
-                <div id="joystick-knob"></div>
-            </div>
-        </div>
+      <div id="colorSettingList" style="max-height:240px; overflow-y:auto; margin-bottom:15px;"></div>
 
-        <!-- 題目與對話視窗 -->
-        <div id="dialogue-box">
-            <div class="flex justify-between items-center mb-3">
-                <span id="task-title" class="text-blue-600 font-bold uppercase text-xs tracking-wider"></span>
-                <button onclick="window.closeTask()" class="text-gray-400 font-bold hover:text-gray-600 text-sm">✕ 關閉</button>
-            </div>
-            <div class="border border-gray-100 rounded-2xl p-3.5 mb-3 bg-gray-50 relative">
-                <div class="flex justify-between items-start">
-                    <div class="text-lg font-bold text-gray-800 pr-10" id="npc-text"></div>
-                    <div class="flex flex-col gap-1.5 absolute right-3 top-3">
-                        <button class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm" onclick="window.speakText(window.currentQuestion.text)">🔊</button>
-                        <button class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm" onclick="window.toggleTranslation('q-trans')">💡</button>
-                    </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button class="btn btn-secondary" onclick="resetDefaultColors()" style="font-size:0.8rem; padding:6px 12px;">恢復預設配色</button>
+        <button class="btn" onclick="saveCustomColors()"><i class="fa-solid fa-floppy-disk"></i> 儲存顏色</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 預設模型分享連結
+    let MODEL_URL = "https://teachablemachine.withgoogle.com/models/_lP_E--Od/";
+
+    // 醒目色彩調色盤
+    const PALETTE = [
+      "#22c55e", "#ef4444", "#38bdf8", "#f59e0b",
+      "#a855f7", "#ec4899", "#14b8a6", "#f97316"
+    ];
+    let classColorMap = {};
+
+    // 預設動態倉庫資料結構 (大區 -> 小格位陣列)
+    const DEFAULT_ZONES = [
+      {
+        id: "zone_a",
+        name: "A 區",
+        drawers: [
+          { id: "d_a1", code: "A-01", item: "LED 紅", qty: 125 },
+          { id: "d_a2", code: "A-02", item: "LED 綠", qty: 100 },
+          { id: "d_a3", code: "A-03", item: "", qty: 0 },
+          { id: "d_a4", code: "A-04", item: "", qty: 0 }
+        ]
+      },
+      {
+        id: "zone_b",
+        name: "B 區",
+        drawers: [
+          { id: "d_b1", code: "B-01", item: "陶瓷電容C 223", qty: 145 },
+          { id: "d_b2", code: "B-02", item: "陶瓷電容C 104", qty: 80 },
+          { id: "d_b3", code: "B-03", item: "", qty: 0 },
+          { id: "d_b4", code: "B-04", item: "", qty: 0 }
+        ]
+      },
+      {
+        id: "zone_c",
+        name: "C 區",
+        drawers: [
+          { id: "d_c1", code: "C-01", item: "R 1KΩ", qty: 75 },
+          { id: "d_c2", code: "C-02", item: "R 47KΩ", qty: 100 },
+          { id: "d_c3", code: "C-03", item: "", qty: 0 },
+          { id: "d_c4", code: "C-04", item: "", qty: 0 }
+        ]
+      }
+    ];
+
+    let warehouseZones = [];
+
+    // 當前辨識結果追蹤狀態
+    let currentIdentifiedPart = "";
+    let currentIdentifiedDrawerId = "";
+    let currentHighlightColor = "var(--accent)";
+    let unassignedClassName = "";
+
+    // 工具函數：產生唯一 ID 與防止 HTML 跳脫異常
+    function generateId(prefix) {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function getDrawerById(drawerId) {
+      for (const zone of warehouseZones) {
+        const drawer = zone.drawers.find(d => d.id === drawerId);
+        if (drawer) return { zone, drawer };
+      }
+      return null;
+    }
+
+    // ========== 載入、儲存與動態渲染倉庫矩陣 ==========
+    function loadDrawerMapping() {
+      const savedV3 = localStorage.getItem("zhiku_warehouse_v3");
+      if (savedV3) {
+        try {
+          const parsed = JSON.parse(savedV3);
+          if (Array.isArray(parsed)) {
+            warehouseZones = parsed;
+            renderDrawers();
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // 向下相容舊版資料 (v2)
+      warehouseZones = JSON.parse(JSON.stringify(DEFAULT_ZONES));
+      const savedV2 = localStorage.getItem("zhiku_drawer_data_v2");
+      if (savedV2) {
+        try {
+          const oldData = JSON.parse(savedV2);
+          warehouseZones.forEach(zone => {
+            zone.drawers.forEach(d => {
+              if (oldData[d.code]) {
+                d.item = oldData[d.code].item || "";
+                d.qty = oldData[d.code].qty || 0;
+              }
+            });
+          });
+        } catch (e) {}
+      }
+      saveDrawerMapping();
+    }
+
+    function saveDrawerMapping() {
+      localStorage.setItem("zhiku_warehouse_v3", JSON.stringify(warehouseZones));
+      renderDrawers();
+    }
+
+    function renderDrawers() {
+      const container = document.getElementById("zoneContainer");
+      if (!container) return;
+
+      if (warehouseZones.length === 0) {
+        container.innerHTML = `
+          <div class="empty-zone-hint" style="grid-column: 1 / -1; padding: 30px;">
+            目前尚無任何倉庫區域，請點擊上方「＋ 新增區域」建立。
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = warehouseZones.map(zone => {
+        const drawersHtml = zone.drawers.length > 0
+          ? zone.drawers.map(d => {
+              const hasItem = Boolean(d.item && d.item.trim());
+              const isHighlighted = (d.id === currentIdentifiedDrawerId);
+              const borderStyle = hasItem ? "border-color: rgba(56, 189, 248, 0.4);" : "";
+              const accentStyle = isHighlighted ? `--accent: ${currentHighlightColor};` : "";
+              return `
+                <div class="drawer-node ${isHighlighted ? 'active-guide' : ''}"
+                     id="drawer-node-${d.id}"
+                     style="${borderStyle} ${accentStyle}"
+                     onclick="openDrawerEditModal('${d.id}')">
+                  <span class="d-code">${escapeHtml(d.code)}</span>
+                  <span class="d-item">${hasItem ? escapeHtml(d.item) : '(空位)'}</span>
+                  ${hasItem ? `<span class="d-qty"><i class="fa-solid fa-boxes-stacked"></i> ${d.qty} pcs</span>` : ''}
                 </div>
-                <div id="q-trans" class="text-blue-600 font-bold text-sm mt-2 hidden"></div>
-                <hr class="my-3 border-gray-200">
-                <div id="vocab-container" class="flex flex-wrap"></div>
+              `;
+            }).join("")
+          : `<div class="empty-zone-hint">尚無小格位，請點右上角「＋」新增</div>`;
+
+        return `
+          <div class="zone-col">
+            <div class="zone-header">
+              <span class="zone-title">${escapeHtml(zone.name)}</span>
+              <div class="zone-actions">
+                <button class="btn-icon add" onclick="addDrawerToZone('${zone.id}')" title="新增小格位">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+                <button class="btn-icon" onclick="renameZone('${zone.id}')" title="修改大區名稱">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn-icon del" onclick="deleteZone('${zone.id}')" title="刪除此區域">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
             </div>
-            <div id="options-container"></div>
-        </div>
-    </div>
+            <div class="drawers-grid">
+              ${drawersHtml}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
 
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm'
+    // ========== 大區與小格位增減／改名操作 ==========
+    function addZone() {
+      const nextLetter = String.fromCharCode(65 + (warehouseZones.length % 26));
+      const defaultName = `${nextLetter} 區`;
+      const name = prompt("請輸入新倉庫區域名稱（例如：D 區、電阻區）：", defaultName);
+      if (!name || !name.trim()) return;
 
-        const supabaseUrl = 'https://zjjtgwmfnupciqzemvbm.supabase.co';
-        const supabaseKey = 'sb_publishable_KMJ7xqLRQmhc15Qzh0F3Nw_Qd7j_OZy';
-        const supabase = createClient(supabaseUrl, supabaseKey);
+      const cleanName = name.trim();
+      const prefix = cleanName.replace(/\s*區$/, "");
+      const newZone = {
+        id: generateId("zone"),
+        name: cleanName,
+        drawers: [
+          { id: generateId("d"), code: `${prefix}-01`, item: "", qty: 0 },
+          { id: generateId("d"), code: `${prefix}-02`, item: "", qty: 0 }
+        ]
+      };
+      warehouseZones.push(newZone);
+      saveDrawerMapping();
+      addLog("倉庫設定", `新增區域 [${cleanName}]`);
+    }
 
-        window.playerName = "";
-        window.playerEmoji = "👦";
-        window.money = 0;
-        window.lives = 5;
-        window.currentQuestion = null;
-        
-        let inDialogue = false;
-        let activeNPC = null;
-        let roomChannel = null;
-        let currentRoomId = "";
-        let isMultiplayer = false;
-        let otherPlayers = {};
-        let joystickVector = { x: 0, y: 0 };
+    function renameZone(zoneId) {
+      const zone = warehouseZones.find(z => z.id === zoneId);
+      if (!zone) return;
 
-        // 載入歡迎動畫與進度條模擬
-        function simulateLoading() {
-            const bar = document.getElementById('loading-bar');
-            const txt = document.getElementById('loading-text');
-            const splash = document.getElementById('splash-screen');
-            let progress = 0;
+      const newName = prompt("請輸入新的區域名稱：", zone.name);
+      if (!newName || !newName.trim() || newName.trim() === zone.name) return;
 
-            const timer = setInterval(() => {
-                progress += Math.floor(Math.random() * 8) + 4;
-                if (progress >= 100) {
-                    progress = 100;
-                    clearInterval(timer);
-                    bar.style.width = '100%';
-                    txt.innerText = '準備完成！進入遊戲...';
-                    setTimeout(() => {
-                        splash.style.opacity = '0';
-                        splash.style.transform = 'scale(1.05)';
-                        setTimeout(() => splash.style.display = 'none', 600);
-                    }, 400);
-                } else {
-                    bar.style.width = `${progress}%`;
-                    txt.innerText = `載入遊戲世界中... ${progress}%`;
-                }
-            }, 60);
+      const oldName = zone.name;
+      zone.name = newName.trim();
+      saveDrawerMapping();
+      addLog("倉庫設定", `區域 [${oldName}] 改名為 [${zone.name}]`);
+    }
+
+    function deleteZone(zoneId) {
+      const idx = warehouseZones.findIndex(z => z.id === zoneId);
+      if (idx === -1) return;
+
+      const zone = warehouseZones[idx];
+      if (!confirm(`確定要刪除「${zone.name}」以及裡面的 ${zone.drawers.length} 個小格位嗎？此操作無法復原。`)) {
+        return;
+      }
+
+      if (zone.drawers.some(d => d.id === currentIdentifiedDrawerId)) {
+        currentIdentifiedDrawerId = "";
+      }
+
+      warehouseZones.splice(idx, 1);
+      saveDrawerMapping();
+      addLog("倉庫設定", `已刪除區域 [${zone.name}]`);
+    }
+
+    function addDrawerToZone(zoneId) {
+      const zone = warehouseZones.find(z => z.id === zoneId);
+      if (!zone) return;
+
+      const prefix = zone.name.replace(/\s*區$/, "");
+      const nextNum = String(zone.drawers.length + 1).padStart(2, "0");
+      const suggestedCode = `${prefix}-${nextNum}`;
+
+      const code = prompt(`在「${zone.name}」新增小格位，請輸入小格名稱：`, suggestedCode);
+      if (!code || !code.trim()) return;
+
+      zone.drawers.push({
+        id: generateId("d"),
+        code: code.trim(),
+        item: "",
+        qty: 0
+      });
+      saveDrawerMapping();
+      addLog(zone.name, `新增小格位 [${code.trim()}]`);
+    }
+
+    function resetDrawerMapping() {
+      if (confirm("確定要將所有區域、小格位與庫存還原為預設配置嗎？")) {
+        warehouseZones = JSON.parse(JSON.stringify(DEFAULT_ZONES));
+        currentIdentifiedDrawerId = "";
+        saveDrawerMapping();
+        addLog("系統", "已重設所有抽屜配置");
+      }
+    }
+
+    function findDrawerByClass(className) {
+      if (!className || className.toLowerCase() === "empty") return null;
+      const target = className.toLowerCase();
+      for (const zone of warehouseZones) {
+        for (const drawer of zone.drawers) {
+          if (drawer.item && drawer.item.trim().toLowerCase() === target) {
+            return { zone, drawer };
+          }
         }
-        window.addEventListener('load', simulateLoading);
+      }
+      return null;
+    }
 
-        const avatars = ['👦', '👧', '🤖', '🦸', '🐼', '🧙', '🦇', '🐭', '🦊', '🐸'];
-        const avatarGrid = document.getElementById('avatar-grid');
-        const nameInput = document.getElementById('name-input');
-        const actionBtns = document.getElementById('action-buttons');
+    // ========== 手動修改抽屜名稱、零件與庫存彈窗邏輯 ==========
+    let activeEditDrawerId = "";
 
-        avatars.forEach(emoji => {
-            let btn = document.createElement('div');
-            btn.className = 'avatar-btn';
-            btn.innerText = emoji;
-            btn.onclick = () => {
-                document.querySelectorAll('.avatar-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                window.playerEmoji = emoji;
-                checkReady();
-            };
-            avatarGrid.appendChild(btn);
+    function openDrawerEditModal(drawerId) {
+      const found = getDrawerById(drawerId);
+      if (!found) return;
+
+      activeEditDrawerId = drawerId;
+      document.getElementById("editModalZoneTitle").innerText = `(${found.zone.name})`;
+      document.getElementById("editDrawerCodeInput").value = found.drawer.code || "";
+      document.getElementById("editItemNameInput").value = found.drawer.item || "";
+      document.getElementById("editItemQtyInput").value = found.drawer.qty || 0;
+
+      document.getElementById("drawerEditModal").style.display = "flex";
+    }
+
+    function closeDrawerEditModal() {
+      document.getElementById("drawerEditModal").style.display = "none";
+      activeEditDrawerId = "";
+    }
+
+    function quickAdjustModalQty(delta) {
+      const input = document.getElementById("editItemQtyInput");
+      let val = parseInt(input.value, 10) || 0;
+      val = Math.max(0, val + delta);
+      input.value = val;
+    }
+
+    function saveDrawerEdit() {
+      if (!activeEditDrawerId) return;
+      const found = getDrawerById(activeEditDrawerId);
+      if (!found) return;
+
+      const newCode = document.getElementById("editDrawerCodeInput").value.trim();
+      if (!newCode) {
+        alert("小區 / 抽屜名稱不可為空白！");
+        return;
+      }
+
+      const name = document.getElementById("editItemNameInput").value.trim();
+      const qty = Math.max(0, parseInt(document.getElementById("editItemQtyInput").value, 10) || 0);
+
+      found.drawer.code = newCode;
+      found.drawer.item = name;
+      found.drawer.qty = qty;
+
+      saveDrawerMapping();
+      addLog(name ? name : `抽屜 ${newCode}`, `更新 [${newCode}] 庫存為 ${qty} pcs`);
+      
+      // 若當前正導航此抽屜，同步更新導航卡片名稱與數量
+      if (currentIdentifiedDrawerId === activeEditDrawerId) {
+        document.getElementById("targetDrawer").innerText = newCode;
+        document.getElementById("targetQty").innerText = `${qty} pcs`;
+      }
+
+      closeDrawerEditModal();
+    }
+
+    function clearCurrentDrawer() {
+      if (!activeEditDrawerId) return;
+      const found = getDrawerById(activeEditDrawerId);
+      if (!found) return;
+
+      if (confirm(`確定要清空抽屜 [${found.drawer.code}] 內的零件與數量嗎？`)) {
+        found.drawer.item = "";
+        found.drawer.qty = 0;
+        saveDrawerMapping();
+        addLog(`抽屜 ${found.drawer.code}`, `已清空格位`);
+        closeDrawerEditModal();
+      }
+    }
+
+    function deleteCurrentDrawer() {
+      if (!activeEditDrawerId) return;
+      const found = getDrawerById(activeEditDrawerId);
+      if (!found) return;
+
+      if (confirm(`確定要永久刪除小格位 [${found.drawer.code}] 嗎？`)) {
+        const drawerCode = found.drawer.code;
+        found.zone.drawers = found.zone.drawers.filter(d => d.id !== activeEditDrawerId);
+        if (currentIdentifiedDrawerId === activeEditDrawerId) {
+          currentIdentifiedDrawerId = "";
+        }
+        saveDrawerMapping();
+        addLog(found.zone.name, `已刪除小格位 [${drawerCode}]`);
+        closeDrawerEditModal();
+      }
+    }
+
+    function openStockModalForCurrent() {
+      if (currentIdentifiedDrawerId) {
+        openDrawerEditModal(currentIdentifiedDrawerId);
+      }
+    }
+
+    // ========== 語音播報智慧優化 ==========
+    function formatForSpeech(text) {
+      if (!text) return "";
+      let formatted = text;
+
+      // 1. 將標準抽屜格位 (例如 A-01, B-04) 轉成「A 區 1 號」
+      formatted = formatted.replace(/([A-Z])-0*(\d+)/gi, "$1 區 $2 號");
+
+      // 2. 其他自訂名稱中的連字號改為空格，避免唸出「減」或「槓」
+      formatted = formatted.replace(/-/g, " ");
+
+      // 3. LED 拆開為英文字母發音
+      formatted = formatted.replace(/LED/gi, "L E D");
+
+      // 4. 連續英文大寫字母自動拆開
+      formatted = formatted.replace(/([A-Z])(?=[A-Z])/g, "$1 ");
+
+      return formatted;
+    }
+
+    function speakCurrentResult() {
+      if (!('speechSynthesis' in window)) {
+        alert("很抱歉，您的瀏覽器不支援語音合成功能！");
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      let text = "";
+
+      const speechPart = formatForSpeech(currentIdentifiedPart);
+      const found = currentIdentifiedDrawerId ? getDrawerById(currentIdentifiedDrawerId) : null;
+
+      if (found) {
+        const speechDrawer = formatForSpeech(found.drawer.code);
+        text = `辨識為 ${speechPart}，請放置於抽屜 ${speechDrawer}，目前庫存 ${found.drawer.qty} 個`;
+      } else if (currentIdentifiedPart) {
+        text = `辨識為 ${speechPart}，目前庫房尚未收納，請點擊上方按鈕分配抽屜`;
+      } else {
+        text = "目前取景框中無零件。";
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "zh-TW";
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // ========== 自訂顏色設定功能 ==========
+    function loadSavedColors() {
+      const saved = localStorage.getItem("zhiku_custom_colors");
+      if (saved) {
+        try { return JSON.parse(saved); } catch(e) { return {}; }
+      }
+      return {};
+    }
+
+    function openColorSettings() {
+      if (!model) {
+        alert("請先點選「開啟鏡頭檢測」載入模型後，再設定標籤顏色！");
+        return;
+      }
+      const list = document.getElementById("colorSettingList");
+      list.innerHTML = "";
+
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue;
+
+        const currentColor = classColorMap[cName] || "#38bdf8";
+        const item = document.createElement("div");
+        item.className = "color-setting-item";
+        item.innerHTML = `
+          <span style="font-weight:600; font-size:0.95rem;">${escapeHtml(cName)}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input type="color" id="picker-${i}" data-class="${escapeHtml(cName)}" value="${currentColor}">
+          </div>
+        `;
+        list.appendChild(item);
+      }
+      document.getElementById("colorModal").style.display = "flex";
+    }
+
+    function closeColorSettings() {
+      document.getElementById("colorModal").style.display = "none";
+    }
+
+    function saveCustomColors() {
+      const customColors = loadSavedColors();
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") continue;
+        const picker = document.getElementById(`picker-${i}`);
+        if (picker) {
+          customColors[cName] = picker.value;
+          classColorMap[cName] = picker.value;
+        }
+      }
+      localStorage.setItem("zhiku_custom_colors", JSON.stringify(customColors));
+      closeColorSettings();
+      alert("顏色設定已更新並永久保存！");
+    }
+
+    function resetDefaultColors() {
+      if (confirm("確定要將所有顏色重設為系統預設配色嗎？")) {
+        localStorage.removeItem("zhiku_custom_colors");
+        applyModelColors();
+        openColorSettings();
+      }
+    }
+
+    function applyModelColors() {
+      const savedColors = loadSavedColors();
+      classColorMap = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        const cName = model.getClassLabels()[i];
+        if (cName.toLowerCase() === "empty") {
+          classColorMap[cName] = "#94a3b8";
+        } else if (savedColors[cName]) {
+          classColorMap[cName] = savedColors[cName];
+        } else {
+          if (/^r/i.test(cName)) {
+            classColorMap[cName] = "#ef4444";
+          } else if (/^g/i.test(cName)) {
+            classColorMap[cName] = "#22c55e";
+          } else if (/^b/i.test(cName)) {
+            classColorMap[cName] = "#38bdf8";
+          } else {
+            classColorMap[cName] = PALETTE[i % PALETTE.length];
+          }
+        }
+      }
+    }
+
+    // ========== 未入庫分配抽屜 (Modal) ==========
+    function openAssignModal() {
+      if (!unassignedClassName) return;
+
+      const totalDrawers = warehouseZones.reduce((sum, z) => sum + z.drawers.length, 0);
+      if (totalDrawers === 0) {
+        alert("目前倉庫沒有任何小格位，請先新增區域與小格位！");
+        return;
+      }
+
+      document.getElementById("modalPartName").innerText = unassignedClassName;
+      const select = document.getElementById("drawerSelect");
+      select.innerHTML = "";
+
+      warehouseZones.forEach(zone => {
+        if (zone.drawers.length === 0) return;
+        const group = document.createElement("optgroup");
+        group.label = zone.name;
+        zone.drawers.forEach(d => {
+          const opt = document.createElement("option");
+          opt.value = d.id;
+          if (d.item && d.item.trim()) {
+            opt.innerText = `${d.code} (現有: ${d.item} · ${d.qty} pcs)`;
+          } else {
+            opt.innerText = `${d.code} (空位)`;
+          }
+          group.appendChild(opt);
         });
+        select.appendChild(group);
+      });
 
-        nameInput.addEventListener('input', checkReady);
+      document.getElementById("assignModal").style.display = "flex";
+    }
 
-        function checkReady() {
-            if (nameInput.value.trim() !== "" && window.playerEmoji !== "") {
-                actionBtns.style.display = 'block';
-                window.playerName = nameInput.value.trim();
-            } else {
-                actionBtns.style.display = 'none';
-            }
+    function closeAssignModal() {
+      document.getElementById("assignModal").style.display = "none";
+    }
+
+    function confirmDrawerAssign() {
+      const selectedDrawerId = document.getElementById("drawerSelect").value;
+      const initialQty = Math.max(0, parseInt(document.getElementById("initialStockInput").value, 10) || 0);
+      if (!selectedDrawerId || !unassignedClassName) return;
+
+      const found = getDrawerById(selectedDrawerId);
+      if (!found) return;
+
+      if (found.drawer.item && found.drawer.item.trim() && found.drawer.item !== unassignedClassName) {
+        if (!confirm(`抽屜 [${found.drawer.code}] 原本放置的是「${found.drawer.item}」，確定要替換為「${unassignedClassName}」嗎？`)) {
+          return;
         }
+      }
 
-        window.startSinglePlayer = function() {
-            isMultiplayer = false;
-            document.getElementById('intro-screen').style.display = 'none';
-            document.getElementById('game-wrapper').style.display = 'block';
-            document.getElementById('battle-panel').style.display = 'none';
-            startGame();
+      found.drawer.item = unassignedClassName;
+      found.drawer.qty = initialQty;
+
+      currentIdentifiedDrawerId = found.drawer.id;
+      currentHighlightColor = classColorMap[unassignedClassName] || "var(--accent)";
+      saveDrawerMapping();
+
+      closeAssignModal();
+      document.getElementById("quickAssignBtn").style.display = "none";
+      document.getElementById("stockAdjustBtn").style.display = "inline-flex";
+
+      const drawerEl = document.getElementById("targetDrawer");
+      const qtyEl = document.getElementById("targetQty");
+      const specEl = document.getElementById("partSpec");
+
+      drawerEl.innerText = found.drawer.code;
+      drawerEl.style.color = currentHighlightColor;
+      qtyEl.innerText = `${initialQty} pcs`;
+      specEl.innerText = `規格：已成功入庫至 [${found.zone.name} · ${found.drawer.code}]，庫存登記為 ${initialQty} pcs。`;
+
+      addLog(unassignedClassName, `新入庫至 [${found.drawer.code}] (庫存: ${initialQty} pcs)`);
+      alert(`設定成功！類別 [${unassignedClassName}] 已指定至抽屜 [${found.drawer.code}]。`);
+    }
+
+    // ========== AI 模型與相機開關流程 ==========
+    let model, webcam, maxPredictions;
+    let isPredicting = false;
+    let lastLoggedPart = null;
+    let animFrameId = null;
+
+    const SAMPLE_COUNT = 15;
+    const COOLDOWN_MS = 800;
+    let sampleBuffer = [];
+    let cooldownUntil = 0;
+    let currentFacingMode = "environment";
+
+    async function toggleCam() {
+      if (isPredicting) {
+        stopCam();
+      } else {
+        await startCam();
+      }
+    }
+
+    async function startCam() {
+      const btn = document.getElementById("startBtn");
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 載入中...';
+
+      try {
+        if (!model) {
+          await loadAIModel();
         }
+        await startWebcam();
 
-        window.createRoom = function() {
-            const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
-            joinSupabaseRoom(roomId);
-        }
-
-        window.joinRoom = function() {
-            const roomId = document.getElementById('room-input').value.trim().toUpperCase();
-            if(roomId.length !== 4) return alert("請輸入 4 位英數字房間代碼");
-            joinSupabaseRoom(roomId);
-        }
-
-        function joinSupabaseRoom(roomId) {
-            currentRoomId = roomId;
-            isMultiplayer = true;
-            document.getElementById('login-ui').style.display = 'none';
-            document.getElementById('lobby-ui').style.display = 'block';
-            document.getElementById('display-room-id').innerText = roomId;
-
-            roomChannel = supabase.channel(`room_${roomId}`, {
-                config: {
-                    presence: { key: window.playerName },
-                    broadcast: { self: false }
-                }
-            });
-
-            roomChannel
-                .on('presence', { event: 'sync' }, () => {
-                    const state = roomChannel.presenceState();
-                    const players = Object.keys(state);
-                    const lobbyDiv = document.getElementById('lobby-players');
-                    lobbyDiv.innerHTML = '';
-                    players.forEach(pName => {
-                        const tag = document.createElement('div');
-                        tag.className = 'player-tag';
-                        const pEmoji = state[pName][0]?.emoji || '👤'; 
-                        tag.innerText = `${pEmoji} ${pName}`;
-                        lobbyDiv.appendChild(tag);
-                    });
-                })
-                .on('broadcast', { event: 'start_game' }, () => enterMultiplayerGame())
-                .on('broadcast', { event: 'player_sync' }, ({ payload }) => {
-                    if (!payload || !payload.name) return;
-                    otherPlayers[payload.name] = {
-                        x: payload.x ?? 1000,
-                        y: payload.y ?? 1000,
-                        emoji: payload.emoji || '👤',
-                        score: payload.score ?? 0
-                    };
-                    updateBattleHUD();
-                })
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await roomChannel.track({ ready: true, emoji: window.playerEmoji });
-                    }
-                });
-        }
-
-        window.triggerGameStart = function() {
-            if(roomChannel) {
-                roomChannel.send({ type: 'broadcast', event: 'start_game' });
-                enterMultiplayerGame();
-            }
-        }
-
-        function enterMultiplayerGame() {
-            document.getElementById('intro-screen').style.display = 'none';
-            document.getElementById('game-wrapper').style.display = 'block';
-            document.getElementById('battle-panel').style.display = 'block';
-            updateBattleHUD();
-            startGame();
-            setInterval(broadcastMyState, 100);
-        }
-
-        let lastBroadcastX = -1, lastBroadcastY = -1, lastBroadcastScore = -1;
-        function broadcastMyState() {
-            if (!isMultiplayer || !roomChannel) return;
-            if (Math.abs(player.x - lastBroadcastX) > 2 || Math.abs(player.y - lastBroadcastY) > 2 || window.money !== lastBroadcastScore) {
-                roomChannel.send({
-                    type: 'broadcast',
-                    event: 'player_sync',
-                    payload: { 
-                        name: window.playerName, 
-                        emoji: window.playerEmoji,
-                        x: player.x, 
-                        y: player.y, 
-                        score: window.money 
-                    }
-                });
-                lastBroadcastX = player.x;
-                lastBroadcastY = player.y;
-                lastBroadcastScore = window.money;
-            }
-        }
-
-        function updateBattleHUD() {
-            const hudContainer = document.getElementById('hud-players-list');
-            if (!hudContainer) return;
-            hudContainer.innerHTML = '';
-
-            let allFighters = [
-                { name: (window.playerName || '我') + " (我)", score: window.money ?? 0, isMe: true }
-            ];
-
-            for (const [pName, pData] of Object.entries(otherPlayers)) {
-                if (!pName || pName === 'undefined') continue;
-                allFighters.push({ 
-                    name: pName, 
-                    score: pData?.score ?? 0, 
-                    isMe: false 
-                });
-            }
-
-            allFighters.sort((a, b) => b.score - a.score);
-
-            allFighters.forEach(f => {
-                let row = document.createElement('div');
-                row.className = `vs-row ${f.isMe ? 'vs-me' : 'vs-enemy'}`;
-                row.innerHTML = `<span class="truncate pr-1">${f.name}</span><span>$${f.score}</span>`;
-                hudContainer.appendChild(row);
-            });
-        }
-
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const WORLD_SIZE = 2000;
-        let viewport = { w: window.innerWidth, h: window.innerHeight };
-        let player = { x: 1000, y: 1000, speed: 6 };
-        let keys = {};
+        document.getElementById("camStatus").innerText = "狀態：實時運算中";
+        isPredicting = true;
         
-        const buildings = [
-            { x: 300, y: 300, w: 250, h: 180, baseColor: '#dfa897', roofColor: '#ebbead', emoji: '🏥', name: 'Hospital', hasPool: true },
-            { x: 1400, y: 400, w: 300, h: 200, baseColor: '#9eb8b5', roofColor: '#a8c7c3', emoji: '🏪', name: 'Supermarket', hasPool: false },
-            { x: 400, y: 1400, w: 250, h: 220, baseColor: '#e3c28c', roofColor: '#f1d19d', emoji: '🏫', name: 'School', hasPool: true },
-            { x: 1200, y: 1300, w: 200, h: 180, baseColor: '#a0b9a8', roofColor: '#b1ccb9', emoji: '🏦', name: 'Bank', hasPool: false },
-            { x: 1020, y: 1600, w: 280, h: 180, baseColor: '#cbd5e1', roofColor: '#94a3b8', emoji: '🚉', name: 'Train Station', hasPool: false },
-            { x: 1500, y: 150, w: 220, h: 200, baseColor: '#475569', roofColor: '#334155', emoji: '🏚️', name: 'Haunted House', hasPool: false }
-        ];
+        btn.disabled = false;
+        btn.className = "btn btn-danger";
+        btn.innerHTML = '<i class="fa-solid fa-power-off"></i> 關閉鏡頭檢測';
+      } catch (err) {
+        console.error(err);
+        alert("鏡頭或模型載入失敗！請確認相機權限與網路。");
+        btn.disabled = false;
+        btn.className = "btn";
+        btn.innerHTML = '<i class="fa-solid fa-camera"></i> 重試開啟';
+      }
+    }
 
-        const roads = [
-            { x: 0, y: 700, w: 2000, h: 160, isHorizontal: true }, 
-            { x: 800, y: 0, w: 160, h: 2000, isHorizontal: false }
-        ];
+    function stopCam() {
+      isPredicting = false;
 
-        const trees = [];
-        for(let i=100; i<2000; i+=180) {
-            if(i < 650 || i > 1050) { trees.push({x: i, y: 640}); trees.push({x: i, y: 920}); }
+      if (animFrameId) {
+        window.cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+
+      if (webcam) {
+        webcam.stop();
+      }
+
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      document.getElementById("placeholder").style.display = "block";
+
+      document.getElementById("camStatus").innerText = "狀態：已關閉";
+      document.getElementById("fpsCounter").innerText = "進度: 等待開啟";
+      document.getElementById("topClassName").innerText = "--";
+      document.getElementById("topClassName").style.color = "inherit";
+      document.getElementById("topClassVal").innerText = "--%";
+      document.getElementById("topClassVal").style.color = "var(--accent)";
+      document.getElementById("topClassBar").style.width = "0%";
+      sampleBuffer = [];
+
+      updateNavigation("empty", 0);
+
+      const btn = document.getElementById("startBtn");
+      btn.disabled = false;
+      btn.className = "btn";
+      btn.innerHTML = '<i class="fa-solid fa-camera"></i> 開啟鏡頭檢測';
+    }
+
+    async function openModelSettings() {
+      const input = prompt("請輸入 Teachable Machine 模型分享網址：", MODEL_URL);
+      if (!input) return;
+
+      const newUrl = input.trim().endsWith('/') ? input.trim() : input.trim() + '/';
+      MODEL_URL = newUrl;
+
+      if (isPredicting) {
+        document.getElementById("camStatus").innerText = "狀態：重新載入新模型中...";
+        try {
+          await loadAIModel();
+          sampleBuffer = [];
+          document.getElementById("camStatus").innerText = "狀態：實時運算中";
+          alert("新模型載入成功！類別與顏色已同步更新。");
+        } catch (err) {
+          alert("新模型載入失敗！請檢查網址是否正確。");
         }
-        for(let j=100; j<2000; j+=180) {
-            if(j < 650 || j > 1050) { trees.push({x: 740, y: j}); trees.push({x: 1020, y: j}); }
+      } else {
+        alert(`模型網址已變更為：\n${MODEL_URL}\n點擊「開啟鏡頭檢測」即可使用新模型。`);
+      }
+    }
+
+    async function loadAIModel() {
+      const modelURL = MODEL_URL + "model.json";
+      const metadataURL = MODEL_URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+      applyModelColors();
+    }
+
+    async function startWebcam() {
+      const isUser = currentFacingMode === "user";
+      webcam = new tmImage.Webcam(340, 340, isUser);
+      await webcam.setup({ facingMode: currentFacingMode });
+      await webcam.play();
+      animFrameId = window.requestAnimationFrame(loop);
+
+      document.getElementById("placeholder").style.display = "none";
+      const box = document.getElementById("webcam-box");
+      const oldCanvas = box.querySelector("canvas");
+      if (oldCanvas) oldCanvas.remove();
+      box.appendChild(webcam.canvas);
+    }
+
+    async function switchCamera() {
+      if (!isPredicting) {
+        alert("請先點擊「開啟鏡頭檢測」！");
+        return;
+      }
+      currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+      if (webcam) webcam.stop();
+      await startWebcam();
+    }
+
+    async function loop() {
+      if (!isPredicting) return;
+      webcam.update();
+      await predict();
+      animFrameId = window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      if (!isPredicting || !model) return;
+
+      const now = performance.now();
+      if (now < cooldownUntil) {
+        const remaining = Math.ceil((cooldownUntil - now) / 100) / 10;
+        document.getElementById("fpsCounter").innerText = `鎖定顯示中 (${remaining}s)`;
+        return;
+      }
+
+      const prediction = await model.predict(webcam.canvas);
+      if (!isPredicting) return;
+      const frameData = {};
+      for (let i = 0; i < maxPredictions; i++) {
+        frameData[prediction[i].className] = prediction[i].probability;
+      }
+      sampleBuffer.push(frameData);
+
+      document.getElementById("fpsCounter").innerText = `AI 取樣分析中: ${sampleBuffer.length} / ${SAMPLE_COUNT}`;
+
+      if (sampleBuffer.length >= SAMPLE_COUNT) {
+        evaluateSamples();
+        sampleBuffer = [];                 
+        cooldownUntil = performance.now() + COOLDOWN_MS; 
+      }
+    }
+
+    function evaluateSamples() {
+      const classTotals = {};
+      sampleBuffer.forEach(frame => {
+        for (let className in frame) {
+          classTotals[className] = (classTotals[className] || 0) + frame[className];
         }
+      });
 
-        const bushes = [
-            {x: 200, y: 200}, {x: 250, y: 240}, {x: 180, y: 400},
-            {x: 1200, y: 200}, {x: 1250, y: 250}, {x: 1100, y: 150},
-            {x: 300, y: 1800}, {x: 350, y: 1750}, {x: 450, y: 1850},
-            {x: 1700, y: 1400}, {x: 1800, y: 1500}, {x: 1750, y: 1600}
-        ];
+      let bestClass = "empty";
+      let highestAvgProb = 0;
 
-        const npcList = [
-            { id: 'chef', x: 400, y: 1000, emoji: '🧑‍🍳', role: 'Chef Gordon' },
-            { id: 'police', x: 1100, y: 400, emoji: '👮', role: 'Officer Smith' },
-            { id: 'teacher', x: 600, y: 1300, emoji: '🧑‍🏫', role: 'Teacher Amy' },
-            { id: 'spidey', x: 1400, y: 1000, emoji: '🕷️', role: 'Spidey' },
-            { id: 'conductor', x: 1160, y: 1750, emoji: '🧑‍✈️', role: 'Conductor Bob' },
-            { id: 'ghost', x: 1600, y: 380, emoji: '👻', role: 'Ghost Boo' }
-        ];
-
-        const questionBank = {
-            'chef': [
-                { text: "Do you have any food allergies?", zh: "您有任何食物過敏嗎？", vocab: [{en: "food", zh: "食物"}, {en: "allergies", zh: "過敏"}], options: [{ text: "Yes, I am allergic to peanuts.", zh: "是的，我對花生過敏。", correct: true }, { text: "I like to drink water.", zh: "我喜歡喝水。", correct: false }] },
-                { text: "Would you like to pay with cash or card?", zh: "您想付現金還是刷卡？", vocab: [{en: "cash", zh: "現金"}, {en: "card", zh: "卡片"}], options: [{ text: "By credit card, please.", zh: "請刷卡。", correct: true }, { text: "I want to wash hands.", zh: "我想洗手。", correct: false }] }
-            ],
-            'police': [
-                { text: "I lost my wallet. What should I do?", zh: "我弄丟了錢包。我該怎麼辦？", vocab: [{en: "lost", zh: "遺失"}, {en: "wallet", zh: "錢包"}], options: [{ text: "Let's file a police report.", zh: "我們來填報案單吧。", correct: true }, { text: "Go to the supermarket.", zh: "去超市。", correct: false }] }
-            ],
-            'teacher': [
-                { text: "May I go to the restroom?", zh: "我可以去洗手間嗎？", vocab: [{en: "restroom", zh: "洗手間"}], options: [{ text: "Yes, but please be quick.", zh: "可以，但請快點回來。", correct: true }, { text: "I have an apple.", zh: "我有一顆蘋果。", correct: false }] }
-            ],
-            'spidey': [
-                { text: "My suit is torn. Do you know a good tailor?", zh: "我的戰衣破了。你知道哪裡有好的裁縫嗎？", vocab: [{en: "suit", zh: "戰衣"}], options: [{ text: "There's a clothing shop nearby.", zh: "附近有一家服飾店。", correct: true }, { text: "I want to sleep.", zh: "我想睡覺。", correct: false }] }
-            ],
-            'conductor': [
-                { text: "You can take the express train, ___ you can take the bus.", zh: "你可以搭快車，___你可以搭公車。", vocab: [{en: "express train", zh: "快車"}], options: [{ text: "or", zh: "或者", correct: true }, { text: "yet", zh: "然而", correct: false }] }
-            ],
-            'ghost': [
-                { text: "Trick or ___! Give me something good to eat!", zh: "不給糖就搗蛋！給我些好吃的！", vocab: [{en: "Trick", zh: "惡作劇/搗蛋"}], options: [{ text: "treat", zh: "請客/糖果", correct: true }, { text: "tree", zh: "樹", correct: false }] }
-            ]
-        };
-
-        window.npcQueues = {};
-
-        function shuffleArray(array) {
-            let shuffled = array.slice();
-            for (let i = shuffled.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-            }
-            return shuffled;
+      for (let className in classTotals) {
+        const avgProb = classTotals[className] / SAMPLE_COUNT;
+        if (avgProb > highestAvgProb) {
+          highestAvgProb = avgProb;
+          bestClass = className;
         }
+      }
 
-        function startGame() {
-            resize();
-            updateLivesDisplay();
-            initVirtualJoystick();
-            requestAnimationFrame(gameLoop);
-        }
+      const percent = Math.round(highestAvgProb * 100);
+      const color = classColorMap[bestClass] || "var(--accent)";
 
-        function updateLivesDisplay() {
-            let fullHearts = Math.max(0, window.lives);
-            let emptyHearts = 5 - fullHearts;
-            document.getElementById('lives-display').innerText = '❤️'.repeat(fullHearts) + '🤍'.repeat(emptyHearts);
-        }
+      document.getElementById("topClassName").innerText = `${bestClass}`;
+      document.getElementById("topClassName").style.color = color;
+      
+      const valEl = document.getElementById("topClassVal");
+      valEl.innerText = `${percent}%`;
+      valEl.style.color = color;
 
-        window.addEventListener('resize', resize);
-        function resize() { 
-            viewport.w = canvas.width = window.innerWidth; 
-            viewport.h = canvas.height = window.innerHeight; 
-        }
-        
-        window.addEventListener('keydown', e => { keys[e.code] = true; });
-        window.addEventListener('keyup', e => { keys[e.code] = false; });
+      const fillBar = document.getElementById("topClassBar");
+      fillBar.style.width = `${percent}%`;
+      fillBar.style.background = color;
 
-        // ================= 虛擬搖桿初始化 (自動偵測手機與觸控環境) =================
-        function initVirtualJoystick() {
-            const zone = document.getElementById('joystick-zone');
-            const base = document.getElementById('joystick-base');
-            const knob = document.getElementById('joystick-knob');
-            if (!zone || !base || !knob) return;
+      updateNavigation(bestClass, highestAvgProb);
+    }
 
-            // 只要是觸控裝置或是窄螢幕就必定啟用搖桿
-            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 1024;
-            if (isTouchDevice) {
-                zone.style.display = 'flex';
-            }
+    function updateNavigation(className, confidence) {
+      const color = classColorMap[className] || "var(--accent)";
+      const found = findDrawerByClass(className);
 
-            const maxRadius = 45;
-            let activeTouchId = null;
+      const nameEl = document.getElementById("detectedName");
+      const drawerEl = document.getElementById("targetDrawer");
+      const qtyEl = document.getElementById("targetQty");
+      const confEl = document.getElementById("targetConf");
+      const specEl = document.getElementById("partSpec");
+      const badge = document.getElementById("guideBadge");
+      const assignBtn = document.getElementById("quickAssignBtn");
+      const stockBtn = document.getElementById("stockAdjustBtn");
+      const voiceBtn = document.getElementById("voiceBtn");
 
-            function handleMove(clientX, clientY) {
-                const rect = base.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
+      document.querySelectorAll(".drawer-node").forEach(node => {
+        node.classList.remove("active-guide");
+      });
 
-                const deltaX = clientX - centerX;
-                const deltaY = clientY - centerY;
-                const distance = Math.hypot(deltaX, deltaY);
+      // 1. 背景狀態
+      if (className.toLowerCase() === "empty") {
+        nameEl.innerText = "等待放置零件...";
+        nameEl.style.color = "var(--text-muted)";
+        drawerEl.innerText = "--";
+        drawerEl.style.color = "var(--accent)";
+        qtyEl.innerText = "--";
+        confEl.innerText = `${Math.round(confidence * 100)}%`;
+        specEl.innerText = "規格：請將零件置於取景框中央以獲得最佳推論精確度";
+        badge.innerText = "STANDBY";
+        badge.style.background = "#334155";
+        assignBtn.style.display = "none";
+        stockBtn.style.display = "none";
+        voiceBtn.style.display = "none";
+        unassignedClassName = "";
+        currentIdentifiedPart = "";
+        currentIdentifiedDrawerId = "";
+        return;
+      }
 
-                if (distance === 0) {
-                    joystickVector = { x: 0, y: 0 };
-                    knob.style.transform = `translate(0px, 0px)`;
-                    return;
-                }
+      // 2. 辨識為零件
+      currentIdentifiedPart = className;
+      currentHighlightColor = color;
+      nameEl.innerText = className;
+      nameEl.style.color = color;
+      confEl.innerText = `${Math.round(confidence * 100)}%`;
+      badge.innerText = "LOCATED";
+      badge.style.background = "#059669";
+      voiceBtn.style.display = "inline-flex";
 
-                const clampedDist = Math.min(distance, maxRadius);
-                const angle = Math.atan2(deltaY, deltaX);
-                const knobX = Math.cos(angle) * clampedDist;
-                const knobY = Math.sin(angle) * clampedDist;
+      if (found) {
+        // 已入庫
+        assignBtn.style.display = "none";
+        stockBtn.style.display = "inline-flex";
+        unassignedClassName = "";
+        currentIdentifiedDrawerId = found.drawer.id;
 
-                knob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+        const currentQty = found.drawer.qty || 0;
+        drawerEl.innerText = found.drawer.code;
+        drawerEl.style.color = color;
+        qtyEl.innerText = `${currentQty} pcs`;
+        specEl.innerText = `規格：已對應至 [${found.zone.name} · ${found.drawer.code}] 格位，目前在庫 ${currentQty} pcs。`;
 
-                const intensity = clampedDist / maxRadius;
-                if (intensity > 0.08) {
-                    joystickVector = {
-                        x: Math.cos(angle) * intensity,
-                        y: Math.sin(angle) * intensity
-                    };
-                } else {
-                    joystickVector = { x: 0, y: 0 };
-                }
-            }
-
-            function resetJoystick() {
-                activeTouchId = null;
-                joystickVector = { x: 0, y: 0 };
-                zone.classList.remove('active');
-                knob.style.transition = 'transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-                knob.style.transform = `translate(0px, 0px)`;
-            }
-
-            zone.addEventListener('touchstart', (e) => {
-                if (activeTouchId !== null) return;
-                const touch = e.changedTouches[0];
-                activeTouchId = touch.identifier;
-                zone.classList.add('active');
-                knob.style.transition = 'none';
-                handleMove(touch.clientX, touch.clientY);
-            }, { passive: false });
-
-            window.addEventListener('touchmove', (e) => {
-                if (activeTouchId === null) return;
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === activeTouchId) {
-                        handleMove(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
-                        break;
-                    }
-                }
-            }, { passive: false });
-
-            const endTouch = (e) => {
-                if (activeTouchId === null) return;
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === activeTouchId) {
-                        resetJoystick();
-                        break;
-                    }
-                }
-            };
-            window.addEventListener('touchend', endTouch);
-            window.addEventListener('touchcancel', endTouch);
-
-            // 滑鼠除錯支援
-            let isMouseDown = false;
-            zone.addEventListener('mousedown', (e) => {
-                isMouseDown = true;
-                zone.classList.add('active');
-                knob.style.transition = 'none';
-                handleMove(e.clientX, e.clientY);
-            });
-            window.addEventListener('mousemove', (e) => {
-                if (!isMouseDown) return;
-                handleMove(e.clientX, e.clientY);
-            });
-            window.addEventListener('mouseup', () => {
-                if (!isMouseDown) return;
-                isMouseDown = false;
-                resetJoystick();
-            });
-        }
-
-        function update() {
-            if (inDialogue || window.lives <= 0) return;
-            let moveX = 0, moveY = 0;
-
-            if (keys['KeyW'] || keys['ArrowUp']) moveY -= player.speed;
-            if (keys['KeyS'] || keys['ArrowDown']) moveY += player.speed;
-            if (keys['KeyA'] || keys['ArrowLeft']) moveX -= player.speed;
-            if (keys['KeyD'] || keys['ArrowRight']) moveX += player.speed;
-
-            if (joystickVector.x !== 0 || joystickVector.y !== 0) {
-                moveX += joystickVector.x * player.speed;
-                moveY += joystickVector.y * player.speed;
-            }
-
-            player.x = Math.max(20, Math.min(WORLD_SIZE - 20, player.x + moveX));
-            player.y = Math.max(20, Math.min(WORLD_SIZE - 20, player.y + moveY));
-
-            npcList.forEach(n => {
-                if (Math.hypot(player.x - n.x, player.y - n.y) < 55) {
-                    activeNPC = n;
-                    openTask(n.id);
-                }
-            });
-        }
-
-        function drawPalmTree(ctx, x, y) {
-            ctx.fillStyle = '#4a7c59'; ctx.save(); ctx.translate(x, y);
-            for(let i=0; i<6; i++) { ctx.rotate(Math.PI / 3); ctx.beginPath(); ctx.ellipse(0, 20, 5, 25, 0, 0, Math.PI * 2); ctx.fill(); }
-            ctx.restore();
-        }
-
-        function drawBush(ctx, x, y) {
-            ctx.fillStyle = '#65a30d'; ctx.beginPath();
-            ctx.arc(x, y, 15, 0, Math.PI*2); ctx.arc(x+15, y+10, 12, 0, Math.PI*2); ctx.arc(x-10, y+12, 10, 0, Math.PI*2);
-            ctx.fill();
-        }
-
-        function draw() {
-            let camX = Math.max(0, Math.min(WORLD_SIZE - viewport.w, player.x - viewport.w / 2));
-            let camY = Math.max(0, Math.min(WORLD_SIZE - viewport.h, player.y - viewport.h / 2));
-
-            ctx.clearRect(0, 0, viewport.w, viewport.h);
-            ctx.save();
-            ctx.translate(-camX, -camY);
-
-            ctx.fillStyle = '#e5d9b6'; ctx.fillRect(WORLD_SIZE - 400, 0, 400, WORLD_SIZE);
-            ctx.fillStyle = '#98c9c6'; ctx.fillRect(WORLD_SIZE - 250, 0, 250, WORLD_SIZE);
-            ctx.fillStyle = '#536367'; roads.forEach(r => ctx.fillRect(r.x, r.y, r.w, r.h));
-            
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.setLineDash([30, 30]);
-            roads.forEach(r => {
-                ctx.beginPath();
-                if(r.isHorizontal) { ctx.moveTo(r.x, r.y + r.h/2); ctx.lineTo(r.x + r.w, r.y + r.h/2); } 
-                else { ctx.moveTo(r.x + r.w/2, r.y); ctx.lineTo(r.x + r.w/2, r.y + r.h); }
-                ctx.stroke();
-            });
-            ctx.setLineDash([]); 
-
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            bushes.forEach(b => drawBush(ctx, b.x, b.y));
-
-            buildings.forEach(b => {
-                ctx.fillStyle = b.baseColor; ctx.fillRect(b.x, b.y, b.w, b.h);
-                ctx.fillStyle = b.roofColor; ctx.fillRect(b.x + 10, b.y + 10, b.w - 20, b.h - 20);
-                if(b.hasPool) {
-                    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(b.x + b.w + 20, b.y + 20, 90, 60);
-                    ctx.fillStyle = '#73b6b8'; ctx.fillRect(b.x + b.w + 25, b.y + 25, 80, 50);
-                }
-                ctx.font = '45px Arial'; ctx.fillText(b.emoji, b.x + b.w / 2, b.y + b.h / 2 - 10);
-                ctx.font = 'bold 15px Arial'; ctx.fillStyle = 'white'; ctx.fillText(b.name, b.x + b.w / 2, b.y - 12);
-            });
-
-            trees.forEach(t => drawPalmTree(ctx, t.x, t.y));
-
-            npcList.forEach(n => {
-                ctx.font = '40px Arial'; ctx.fillText(n.emoji, n.x, n.y);
-                ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                let tw = ctx.measureText(n.role).width;
-                ctx.fillRect(n.x - tw/2 - 6, n.y - 40, tw + 12, 20);
-                ctx.fillStyle = 'white'; ctx.fillText(n.role, n.x, n.y - 30);
-            });
-
-            if (isMultiplayer) {
-                for (const [pName, pData] of Object.entries(otherPlayers)) {
-                    ctx.font = '40px Arial'; ctx.fillText(pData.emoji, pData.x, pData.y);
-                    ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                    let ptw = ctx.measureText(pName).width;
-                    ctx.fillRect(pData.x - ptw/2 - 6, pData.y - 40, ptw + 12, 20);
-                    ctx.fillStyle = '#1e293b'; ctx.fillText(pName, pData.x, pData.y - 30);
-                }
-            }
-
-            ctx.font = '42px Arial'; ctx.fillText(window.playerEmoji, player.x, player.y);
-            ctx.font = 'bold 13px Arial'; ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-            let myTw = ctx.measureText(window.playerName).width;
-            ctx.fillRect(player.x - myTw/2 - 6, player.y - 40, myTw + 12, 20);
-            ctx.fillStyle = '#1e293b'; ctx.fillText(window.playerName, player.x, player.y - 30);
-
-            ctx.restore();
+        const drawerNode = document.getElementById(`drawer-node-${found.drawer.id}`);
+        if (drawerNode) {
+          drawerNode.classList.add("active-guide");
+          drawerNode.style.setProperty("--accent", color);
         }
 
-        function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-
-        window.speakText = function(text) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                let utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US';
-                window.speechSynthesis.speak(utterance);
-            }
+        if (lastLoggedPart !== className && confidence > 0.85) {
+          addLog(className, `歸位導航至 [${found.drawer.code}] (庫存: ${currentQty} pcs)`);
+          lastLoggedPart = className;
         }
+      } else {
+        // 未入庫
+        unassignedClassName = className;
+        currentIdentifiedDrawerId = "";
+        drawerEl.innerText = "未入庫";
+        drawerEl.style.color = "var(--warning)";
+        qtyEl.innerText = "0 pcs";
+        specEl.innerText = `提示：庫房尚未收納「${className}」，請點擊下方按鈕分配抽屜與庫存。`;
+        assignBtn.style.display = "inline-flex";
+        stockBtn.style.display = "none";
+      }
+    }
 
-        window.toggleTranslation = function(id) {
-            let el = document.getElementById(id);
-            el.style.display = el.style.display === 'block' ? 'none' : 'block';
-        }
+    function addLog(name, action) {
+      const list = document.getElementById("logList");
+      const time = new Date().toLocaleTimeString();
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.innerHTML = `<span>${escapeHtml(name)}</span> <span>${escapeHtml(action)} · ${time}</span>`;
+      list.prepend(item);
+    }
 
-        window.closeTask = function() {
-            document.getElementById('dialogue-box').style.display = 'none';
-            player.y += 80; setTimeout(() => { inDialogue = false; }, 300);
-        }
-
-        function openTask(npcId) {
-            inDialogue = true; keys = {};
-            joystickVector = { x: 0, y: 0 };
-            if (!window.npcQueues[npcId] || window.npcQueues[npcId].length === 0) {
-                window.npcQueues[npcId] = shuffleArray(questionBank[npcId] || questionBank['chef']);
-            }
-            window.currentQuestion = window.npcQueues[npcId].pop();
-            
-            document.getElementById('task-title').innerText = `${activeNPC.role}'S TASK`;
-            document.getElementById('npc-text').innerText = window.currentQuestion.text;
-            document.getElementById('q-trans').innerText = window.currentQuestion.zh;
-            document.getElementById('q-trans').style.display = 'none';
-
-            const vCont = document.getElementById('vocab-container');
-            vCont.innerHTML = '';
-            if (window.currentQuestion.vocab) {
-                window.currentQuestion.vocab.forEach((v, index) => {
-                    let pill = document.createElement('div'); pill.className = 'vocab-pill';
-                    const safeEn = v.en.replace(/'/g, "\\'");
-                    pill.innerHTML = `${v.en} <button class="tool-btn-small" onclick="window.speakText('${safeEn}')">🔊</button><button class="tool-btn-small" onclick="window.toggleTranslation('v-trans-${index}')">💡</button><span id="v-trans-${index}" class="ml-2 text-blue-500 font-normal" style="display:none;">${v.zh}</span>`;
-                    vCont.appendChild(pill);
-                });
-            }
-
-            const optCont = document.getElementById('options-container');
-            optCont.innerHTML = '';
-            let shuffledOptions = shuffleArray(window.currentQuestion.options);
-
-            shuffledOptions.forEach((opt, idx) => {
-                let btn = document.createElement('div'); btn.className = 'option-btn';
-                const safeOptEn = opt.text.replace(/'/g, "\\'");
-                btn.innerHTML = `
-                    <div class="flex-1 pr-3" onclick="window.handleAnswer(event, ${opt.correct})">
-                        <div class="text-base font-semibold mb-1">${opt.text}</div>
-                        <div id="opt-trans-${idx}" class="text-blue-600 font-bold mb-1 hidden text-sm">${opt.zh}</div>
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <button class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm" onclick="event.stopPropagation(); window.speakText('${safeOptEn}')">🔊</button>
-                        <button class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center text-sm" onclick="event.stopPropagation(); window.toggleTranslation('opt-trans-${idx}')">💡</button>
-                    </div>
-                `;
-                optCont.appendChild(btn);
-            });
-            document.getElementById('dialogue-box').style.display = 'block';
-        }
-
-        window.handleAnswer = function(event, isCorrect) {
-            let card = event.currentTarget.closest('.option-btn');
-            document.querySelectorAll('.option-btn').forEach(c => c.style.pointerEvents = 'none');
-
-            if (isCorrect) {
-                card.style.backgroundColor = '#dcfce7'; card.style.borderColor = '#22c55e'; 
-                window.money += 20;
-                document.getElementById('money').innerText = window.money;
-                updateBattleHUD();
-            } else {
-                card.style.backgroundColor = '#fee2e2'; card.style.borderColor = '#ef4444'; 
-                window.lives -= 1;
-                updateLivesDisplay();
-            }
-            
-            setTimeout(() => {
-                document.getElementById('dialogue-box').style.display = 'none';
-                player.y += 80; inDialogue = false;
-                if (window.lives <= 0) {
-                    document.getElementById('final-score').innerText = window.money;
-                    document.getElementById('game-over-modal').style.display = 'flex';
-                }
-            }, 1000);
-        }
-    </script>
+    window.addEventListener("DOMContentLoaded", () => {
+      loadDrawerMapping();
+    });
+  </script>
 </body>
 </html>
